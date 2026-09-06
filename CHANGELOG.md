@@ -1,3 +1,7 @@
+# v1.26.0
+
+- Add "Time String Generator" node: outputs the current timestamp as a string, re-running every queue execution (via `IS_CHANGED`) so it can feed a shared, always-fresh value into multiple Saver nodes' `label` input.
+
 # v1.25.2
 
 - Replace "VAE Encode (Individual Images)" with "VAE Force Individual Images": outputs a patched VAE instead of encoding directly, so the fix also applies to nodes that encode internally (e.g. Ultimate SD Upscale), not just a dedicated encode node.

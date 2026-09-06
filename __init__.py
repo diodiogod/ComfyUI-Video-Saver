@@ -2,7 +2,7 @@ from typing import Any
 
 from .nodes import ImageSaver, ImageSaverSimple, ImageSaverMetadata
 from .nodes_pipe import MakeImageSaverPipe, EditImageSaverPipe, ReadImageSaverPipe, ImageSaverFromPipe, MakeImageSaverSimpleConfig, MakeImageSaverMetadataConfig
-from .nodes_literals import SeedGenerator, StringLiteral, SizeLiteral, IntLiteral, FloatLiteral, CfgLiteral, ConditioningConcatOptional, RandomShapeGenerator, EmptyLatent
+from .nodes_literals import SeedGenerator, StringLiteral, SizeLiteral, IntLiteral, FloatLiteral, CfgLiteral, ConditioningConcatOptional, RandomShapeGenerator, EmptyLatent, TimeStringGenerator
 from .nodes_loaders import CheckpointLoaderWithName, UNETLoaderWithName
 from .nodes_selectors import SamplerSelector, SchedulerSelector, SchedulerSelectorInspire, SchedulerSelectorEfficiency, InputParameters, AnyToString, WorkflowInputValue
 from .civitai_nodes import CivitaiHashFetcher
@@ -29,6 +29,7 @@ NODE_CLASS_MAPPINGS: dict[str, Any] = {
     "Any to String (Image Saver)": AnyToString,
     "Workflow Input Value (Image Saver)": WorkflowInputValue,
     "Seed Generator (Image Saver)": SeedGenerator,
+    "Time String Generator (Image Saver)": TimeStringGenerator,
     "String Literal (Image Saver)": StringLiteral,
     "Width/Height Literal (Image Saver)": SizeLiteral,
     "Cfg Literal (Image Saver)": CfgLiteral,
