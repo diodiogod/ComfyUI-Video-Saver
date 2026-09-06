@@ -88,7 +88,7 @@ def save_json(image_info: dict[str, Any] | None, filename: str) -> None:
     except Exception as e:
         print(f'Failed to save workflow as json due to: {e}, proceeding with the remainder of saving execution')
 
-def make_pathname(filename: str, width: int, height: int, seed: int, modelname: str, counter: int, time_format: str, sampler_name: str, steps: int, cfg: float, scheduler_name: str, denoise: float, clip_skip: int, custom: str) -> str:
+def make_pathname(filename: str, width: int, height: int, seed: int, modelname: str, counter: int, time_format: str, sampler_name: str, steps: int, cfg: float, scheduler_name: str, denoise: float, clip_skip: int, custom: str, label: str = "") -> str:
     # Process custom format patterns first
     filename = apply_custom_time_format(filename)
     filename = apply_custom_counter_format(filename, counter)
@@ -107,13 +107,14 @@ def make_pathname(filename: str, width: int, height: int, seed: int, modelname: 
     filename = filename.replace("%denoise", str(denoise))
     filename = filename.replace("%clip_skip", str(clip_skip))
     filename = filename.replace("%custom", custom)
+    filename = filename.replace("%label", label)
 
     directory, basename = os.path.split(filename)
     sanitized_basename = sanitize_filename(basename)
     return os.path.join(directory, sanitized_basename)
 
-def make_filename(filename: str, width: int, height: int, seed: int, modelname: str, counter: int, time_format: str, sampler_name: str, steps: int, cfg: float, scheduler_name: str, denoise: float, clip_skip: int, custom: str) -> str:
-    filename = make_pathname(filename, width, height, seed, modelname, counter, time_format, sampler_name, steps, cfg, scheduler_name, denoise, clip_skip, custom)
+def make_filename(filename: str, width: int, height: int, seed: int, modelname: str, counter: int, time_format: str, sampler_name: str, steps: int, cfg: float, scheduler_name: str, denoise: float, clip_skip: int, custom: str, label: str = "") -> str:
+    filename = make_pathname(filename, width, height, seed, modelname, counter, time_format, sampler_name, steps, cfg, scheduler_name, denoise, clip_skip, custom, label)
     return get_timestamp(time_format) if filename == "" else filename
 
 @dataclass
@@ -273,7 +274,7 @@ class ImageSaverSimple:
         return {
             "required": {
                 "images":                ("IMAGE",    {                                                             "tooltip": "image(s) to save"}),
-                "filename":              ("STRING",   {"default": '%time_%basemodelname_%seed', "multiline": False, "tooltip": "filename (available variables: %date, %time, %time_format<format>, %model, %width, %height, %seed, %counter, %counter<padding>, %sampler_name, %steps, %cfg, %scheduler_name, %basemodelname, %denoise, %clip_skip)"}),
+                "filename":              ("STRING",   {"default": '%time_%basemodelname_%seed', "multiline": False, "tooltip": "filename (available variables: %date, %time, %time_format<format>, %model, %width, %height, %seed, %counter, %counter<padding>, %sampler_name, %steps, %cfg, %scheduler_name, %basemodelname, %denoise, %clip_skip, %custom, %label)"}),
                 "path":                  ("STRING",   {"default": '', "multiline": False,                           "tooltip": "path to save the images (under Comfy's save directory)"}),
                 "extension":             (['png', 'jpeg', 'jpg', 'webp'], {                                         "tooltip": "file extension/type to save image as"}),
                 "lossless_webp":         ("BOOLEAN",  {"default": True,                                             "tooltip": "if True, saved WEBP files will be lossless"}),
@@ -286,6 +287,7 @@ class ImageSaverSimple:
                 "metadata":              ("METADATA", {"default": None,                                             "tooltip": "metadata to embed in the image"}),
                 "counter":               ("INT",      {"default": 0, "min": 0, "max": 0xffffffffffffffff,           "tooltip": "counter"}),
                 "time_format":           ("STRING",   {"default": "%Y-%m-%d-%H%M%S", "multiline": False,            "tooltip": "timestamp format"}),
+                "label":                 ("STRING",   {"default": "", "multiline": False,                           "tooltip": "plain string usable in the filename/path via %label, independent of the metadata's custom field"}),
                 "show_preview":          ("BOOLEAN",  {"default": True,                                             "tooltip": "if True, displays saved images in the UI preview"}),
             },
             "hidden": {
@@ -318,15 +320,16 @@ class ImageSaverSimple:
         metadata: Metadata | None = None,
         counter: int = 0,
         time_format: str = "%Y-%m-%d-%H%M%S",
+        label: str = "",
         prompt: dict[str, Any] | None = None,
         extra_pnginfo: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         if metadata is None:
             metadata = Metadata('', '', '', 512, 512, 0, 20, 7.0, '', 'normal', 1.0, 0, '', '', '', '', '')
 
-        path = make_pathname(path, metadata.width, metadata.height, metadata.seed, metadata.modelname, counter, time_format, metadata.sampler_name, metadata.steps, metadata.cfg, metadata.scheduler_name, metadata.denoise, metadata.clip_skip, metadata.custom)
+        path = make_pathname(path, metadata.width, metadata.height, metadata.seed, metadata.modelname, counter, time_format, metadata.sampler_name, metadata.steps, metadata.cfg, metadata.scheduler_name, metadata.denoise, metadata.clip_skip, metadata.custom, label)
 
-        filenames = ImageSaver.save_images(images, filename, extension, path, quality_jpeg_or_webp, lossless_webp, optimize_png, prompt, extra_pnginfo, save_workflow_as_json, embed_workflow, counter, time_format, metadata)
+        filenames = ImageSaver.save_images(images, filename, extension, path, quality_jpeg_or_webp, lossless_webp, optimize_png, prompt, extra_pnginfo, save_workflow_as_json, embed_workflow, counter, time_format, metadata, label=label)
 
         subfolder = os.path.normpath(path)
 
@@ -345,7 +348,7 @@ class ImageSaver:
         return {
             "required": {
                 "images":                ("IMAGE",   {                                                             "tooltip": "image(s) to save"}),
-                "filename":              ("STRING",  {"default": '%time_%basemodelname_%seed', "multiline": False, "tooltip": "filename (available variables: %date, %time, %time_format<format>, %model, %width, %height, %seed, %counter, %counter<padding>, %sampler_name, %steps, %cfg, %scheduler_name, %basemodelname, %denoise, %clip_skip)"}),
+                "filename":              ("STRING",  {"default": '%time_%basemodelname_%seed', "multiline": False, "tooltip": "filename (available variables: %date, %time, %time_format<format>, %model, %width, %height, %seed, %counter, %counter<padding>, %sampler_name, %steps, %cfg, %scheduler_name, %basemodelname, %denoise, %clip_skip, %custom, %label)"}),
                 "path":                  ("STRING",  {"default": '', "multiline": False,                           "tooltip": "path to save the images (under Comfy's save directory)"}),
                 "extension":             (['png', 'jpeg', 'jpg', 'webp'], {                                        "tooltip": "file extension/type to save image as"}),
             },
@@ -374,6 +377,7 @@ class ImageSaver:
                 "easy_remix":            ("BOOLEAN", {"default": True,                                             "tooltip": "Strip LoRAs and simplify 'embedding:path' from the prompt to make the Remix option on civitai.com more seamless."}),
                 "show_preview":          ("BOOLEAN", {"default": True,                                             "tooltip": "if True, displays saved images in the UI preview"}),
                 "custom":                ("STRING",  {"default": "", "multiline": False,                           "tooltip": "custom string to add to the metadata, inserted into the a111 string between clip skip and model hash"}),
+                "label":                 ("STRING",  {"default": "", "multiline": False,                           "tooltip": "plain string usable in the filename/path via %label, independent of the 'custom' metadata field"}),
             },
             "hidden": {
                 "prompt": "PROMPT",
@@ -421,14 +425,15 @@ class ImageSaver:
         easy_remix: bool = True,
         show_preview: bool = True,
         custom: str = "",
+        label: str = "",
         prompt: dict[str, Any] | None = None,
         extra_pnginfo: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         metadata = ImageSaverMetadata.make_metadata(modelname, positive, negative, width, height, seed_value, steps, cfg, sampler_name, scheduler_name, denoise, clip_skip, custom, additional_hashes, download_civitai_data, easy_remix)
 
-        path = make_pathname(path, metadata.width, metadata.height, metadata.seed, metadata.modelname, counter, time_format, metadata.sampler_name, metadata.steps, metadata.cfg, metadata.scheduler_name, metadata.denoise, metadata.clip_skip, metadata.custom)
+        path = make_pathname(path, metadata.width, metadata.height, metadata.seed, metadata.modelname, counter, time_format, metadata.sampler_name, metadata.steps, metadata.cfg, metadata.scheduler_name, metadata.denoise, metadata.clip_skip, metadata.custom, label)
 
-        filenames = ImageSaver.save_images(images, filename, extension, path, quality_jpeg_or_webp, lossless_webp, optimize_png, prompt, extra_pnginfo, save_workflow_as_json, embed_workflow, counter, time_format, metadata)
+        filenames = ImageSaver.save_images(images, filename, extension, path, quality_jpeg_or_webp, lossless_webp, optimize_png, prompt, extra_pnginfo, save_workflow_as_json, embed_workflow, counter, time_format, metadata, label=label)
 
         subfolder = os.path.normpath(path)
 
@@ -456,9 +461,10 @@ class ImageSaver:
         embed_workflow: bool,
         counter: int,
         time_format: str,
-        metadata: Metadata
+        metadata: Metadata,
+        label: str = "",
     ) -> list[str]:
-        filename_prefix = make_filename(filename_pattern, metadata.width, metadata.height, metadata.seed, metadata.modelname, counter, time_format, metadata.sampler_name, metadata.steps, metadata.cfg, metadata.scheduler_name, metadata.denoise, metadata.clip_skip, metadata.custom)
+        filename_prefix = make_filename(filename_pattern, metadata.width, metadata.height, metadata.seed, metadata.modelname, counter, time_format, metadata.sampler_name, metadata.steps, metadata.cfg, metadata.scheduler_name, metadata.denoise, metadata.clip_skip, metadata.custom, label)
 
         output_path = resolve_within_output(path)
 

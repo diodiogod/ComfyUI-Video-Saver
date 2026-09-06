@@ -1,3 +1,8 @@
+# v1.25.0
+
+- Add "VAE Encode (Individual Images)" node: lets 3D/video VAEs (e.g. Qwen Image) encode a batch of images as separate images instead of truncating them into video frames, working around https://github.com/Comfy-Org/ComfyUI/issues/14039.
+- Add `label` input and `%label` filename/path variable to Image Saver and Image Saver Simple: a plain string independent of the metadata `custom` field.
+
 # v1.24.1
 
 - Fix a path-traversal issue where `path`/`filename` could write image and workflow-JSON output outside ComfyUI's output directory.
