@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-video-saver"
 description = "Save videos with Civitai-compatible generation metadata in ComfyUI, with the inherited Image Saver toolset included."
-version = "1.25.0"
+version = "1.26.0"
 license = { file = "LICENSE" }
 dependencies = ["piexif"]
 

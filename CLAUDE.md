@@ -71,7 +71,8 @@ pip install -r requirements.txt
 - **Hash Calculation**: SHA256 hashing with file caching (`.sha256` files)
 - **Resource Detection**: Automatic LoRA, embedding, and model hash extraction
 - **Civitai Integration**: Downloads resource metadata for proper attribution
-- **Filename Templating**: Supports variables like `%date`, `%time`, `%seed`, `%model`, `%width`, `%height`, `%counter` (including zero-padded format via `%counter<padding>`), `%sampler_name`, `%steps`, `%cfg`, `%scheduler_name`, `%basemodelname`, `%denoise`, `%clip_skip`, `%custom`
+- **Filename Templating**: Supports variables like `%date`, `%time`, `%seed`, `%model`, `%width`, `%height`, `%counter` (including zero-padded format via `%counter<padding>`), `%sampler_name`, `%steps`, `%cfg`, `%scheduler_name`, `%basemodelname`, `%denoise`, `%clip_skip`, `%custom`, `%label`
+- **Label vs Custom**: `custom` is embedded in the A1111 metadata string (and also usable via `%custom` in filenames); `label` (Image Saver / Image Saver Simple) is filename/path-only via `%label` and independent of metadata, meant for values shared across multiple Saver nodes in a workflow (e.g. one timestamp fed into several savers)
 
 ### Advanced Features
 

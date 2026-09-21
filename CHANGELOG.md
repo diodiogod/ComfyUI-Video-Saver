@@ -1,9 +1,26 @@
-# v1.25.0
+# Maintained fork additions
 
 - Add Civitai-compatible metadata saving for native ComfyUI VIDEO (including audio) and VideoHelperSuite outputs.
 - Preserve the raw scheduler as `Schedule type` in generation parameters.
 - Add an example workflow covering both native VIDEO and VideoHelperSuite routes.
 - Rebrand the maintained fork as ComfyUI Video Saver while preserving the inherited image features and existing node identifiers for workflow compatibility.
+
+# v1.26.0
+
+- Add "Time String Generator" node: outputs the current timestamp as a string, re-running every queue execution (via `IS_CHANGED`) so it can feed a shared, always-fresh value into multiple Saver nodes' `label` input.
+
+# v1.25.2
+
+- Replace "VAE Encode (Individual Images)" with "VAE Force Individual Images": outputs a patched VAE instead of encoding directly, so the fix also applies to nodes that encode internally (e.g. Ultimate SD Upscale), not just a dedicated encode node.
+
+# v1.25.1
+
+- Add "VAE Encode (Individual Images)": handle images only.
+
+# v1.25.0
+
+- Add "VAE Encode (Individual Images)" node: lets 3D/video VAEs (e.g. Qwen Image) encode a batch of images as separate images instead of truncating them into video frames, working around https://github.com/Comfy-Org/ComfyUI/issues/14039.
+- Add `label` input and `%label` filename/path variable to Image Saver and Image Saver Simple: a plain string independent of the metadata `custom` field.
 
 # v1.24.1
 

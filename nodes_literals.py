@@ -6,8 +6,32 @@ import comfy.model_management
 
 import numpy as np
 from PIL import Image, ImageDraw
+from datetime import datetime
 import random
 import math
+
+class TimeStringGenerator:
+    RETURN_TYPES = ("STRING",)
+    OUTPUT_TOOLTIPS = ("current timestamp (STRING)",)
+    FUNCTION = "get_time"
+
+    CATEGORY = "ImageSaver/utils"
+    DESCRIPTION = "Provides the current timestamp as a string, formatted with strftime. Re-runs every queue execution (unlike a plain string literal), so it's suited for sharing one timestamp across multiple Saver nodes' `label` input."
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, Any]:
+        return {
+            "required": {
+                "time_format": ("STRING", {"default": "%Y-%m-%d-%H%M%S", "multiline": False, "tooltip": "strftime format string"}),
+            }
+        }
+
+    @classmethod
+    def IS_CHANGED(cls, time_format: str) -> float:
+        return float("nan")
+
+    def get_time(self, time_format: str) -> tuple[str,]:
+        return (datetime.now().strftime(time_format),)
 
 class SeedGenerator:
     RETURN_TYPES = ("INT",)

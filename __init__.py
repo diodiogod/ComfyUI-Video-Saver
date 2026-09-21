@@ -2,11 +2,12 @@ from typing import Any
 
 from .nodes import ImageSaver, ImageSaverSimple, ImageSaverMetadata, ImageSaverVideoMetadata, ImageSaverSaveVideo
 from .nodes_pipe import MakeImageSaverPipe, EditImageSaverPipe, ReadImageSaverPipe, ImageSaverFromPipe, MakeImageSaverSimpleConfig, MakeImageSaverMetadataConfig
-from .nodes_literals import SeedGenerator, StringLiteral, SizeLiteral, IntLiteral, FloatLiteral, CfgLiteral, ConditioningConcatOptional, RandomShapeGenerator, EmptyLatent
+from .nodes_literals import SeedGenerator, StringLiteral, SizeLiteral, IntLiteral, FloatLiteral, CfgLiteral, ConditioningConcatOptional, RandomShapeGenerator, EmptyLatent, TimeStringGenerator
 from .nodes_loaders import CheckpointLoaderWithName, UNETLoaderWithName
 from .nodes_selectors import SamplerSelector, SchedulerSelector, SchedulerSelectorInspire, SchedulerSelectorEfficiency, InputParameters, AnyToString, WorkflowInputValue
 from .civitai_nodes import CivitaiHashFetcher
 from .random_tag_picker import RandomTagPicker, RandomCharacterPicker, RandomArtistPicker
+from .nodes_vae import VAEForceIndividualImages
 
 NODE_CLASS_MAPPINGS: dict[str, Any] = {
     "Checkpoint Loader with Name (Image Saver)": CheckpointLoaderWithName,
@@ -30,6 +31,7 @@ NODE_CLASS_MAPPINGS: dict[str, Any] = {
     "Any to String (Image Saver)": AnyToString,
     "Workflow Input Value (Image Saver)": WorkflowInputValue,
     "Seed Generator (Image Saver)": SeedGenerator,
+    "Time String Generator (Image Saver)": TimeStringGenerator,
     "String Literal (Image Saver)": StringLiteral,
     "Width/Height Literal (Image Saver)": SizeLiteral,
     "Cfg Literal (Image Saver)": CfgLiteral,
@@ -42,6 +44,7 @@ NODE_CLASS_MAPPINGS: dict[str, Any] = {
     "Random Tag Picker (Image Saver)": RandomTagPicker,
     "Random Character Picker (Image Saver)": RandomCharacterPicker,
     "Random Artist Picker (Image Saver)": RandomArtistPicker,
+    "VAE Force Individual Images (Image Saver)": VAEForceIndividualImages,
 }
 
 WEB_DIRECTORY = "js"
