@@ -2,6 +2,9 @@
 
 Save videos with generation metadata in ComfyUI, while retaining the complete inherited Image Saver toolset.
 
+> [!TIP]
+> **Upload compatible videos directly to Civitai—no browser extension required.** Since v1.27.0, both the native ComfyUI VIDEO saver and the VHS metadata node write metadata that Civitai can import automatically. The [browser extension](https://github.com/diodiogod/Civitai-Video-Metadata-Assistant) remains available as a fallback for older videos or metadata Civitai misses.
+
 This is a maintained fork of [alexopus/ComfyUI-Image-Saver](https://github.com/alexopus/ComfyUI-Image-Saver), extended with native ComfyUI and VideoHelperSuite video support. It remains a GitHub fork so upstream changes and attribution stay visible. Existing Image Saver node names are intentionally preserved for workflow compatibility.
 
 The original project was itself forked from [giriss/comfy-image-saver](https://github.com/giriss/comfy-image-saver).
@@ -18,9 +21,16 @@ You can also add LoRAs to the prompt in \<lora:name:weight\> format, which would
 
 The video nodes preserve the same positive/negative prompts, settings, model and LoRA hashes, and Civitai resource list used by the image saver. Civitai now reads ComfyUI metadata natively from MP4 and WebM uploads ([Civitai PR #5147](https://github.com/civitai/civitai/pull/5147)). Videos saved with this version can use that native upload flow.
 
+To use native Civitai detection:
+
+1. Update this node pack and restart ComfyUI.
+2. Connect `Image Saver Metadata` to the native VIDEO saver or the VHS metadata node. Keep `download_civitai_data` enabled for resolved resource IDs.
+3. Save a new MP4 or WebM. For VHS, use the enriched output from `Image Saver — Add Metadata to VHS Video`—the `_civitai` copy by default.
+4. Disable the browser extension and upload through Civitai's own media-upload form. Review the detected prompt, settings, and resources before publishing.
+
 For native ComfyUI video workflows, use `Image Saver — Save Native Video (VIDEO + Audio)`. Connect the native `VIDEO` output from `Create Video` or another native video node to `video`, and connect `Image Saver Metadata` to `metadata`. This is the actual saver: it encodes the native frames plus optional audio, then adds metadata. Its filename prefix supports Image Saver placeholders such as `%time`, `%basemodelname`, and `%seed`.
 
-For VideoHelperSuite, keep `save_metadata` enabled on `Video Combine`, then connect its `VHS_FILENAMES` output to `Image Saver — Add Metadata to VHS Video` and connect `Image Saver Metadata` to `metadata`. This is not another video encoder: it post-processes files already written by VHS and creates a suffixed MP4/WebM copy by default, preserving the original and all existing video/audio streams.
+For VideoHelperSuite, keep `save_metadata` enabled on `Video Combine`, then connect its `VHS_FILENAMES` output to `Image Saver — Add Metadata to VHS Video` and connect `Image Saver Metadata` to `metadata`. It enriches the files already written by VHS and creates a suffixed MP4/WebM copy by default, preserving the original and all existing video/audio streams. Upload that enriched copy to Civitai for native metadata detection.
 
 Both paths write a compact ComfyUI compatibility graph to `prompt`, built from the explicit Image Saver Metadata inputs. Civitai reads this graph to recover positive/negative prompts, seed, steps, sampler, scheduler, guidance, dimensions, and resolved resource versions. This graph describes the saved metadata; the original UI workflow remains the workflow to load in ComfyUI.
 

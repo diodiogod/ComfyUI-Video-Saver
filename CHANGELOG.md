@@ -1,3 +1,8 @@
+# v1.27.1
+
+- Clarify that compatible native VIDEO and VHS outputs can be uploaded directly to Civitai without the browser extension.
+- Add native-upload instructions and explain which enriched VHS file to upload, with the extension retained as an optional fallback.
+
 # v1.27.0
 
 - Add a compact metadata graph that Civitai's native MP4/WebM upload reader can parse, based on ComplexRobot's contribution in PR #2.
