@@ -361,7 +361,7 @@ class ImageSaverVideoMetadata:
                 "filenames": ("VHS_FILENAMES", {"tooltip": "VideoHelperSuite only: connect the VHS_FILENAMES output from Video Combine. This is not the native VIDEO type."}),
                 "filename_suffix": ("STRING", {"default": "_civitai", "multiline": False, "tooltip": "Suffix for the metadata-enriched MP4/WebM copy"}),
                 "overwrite_existing": ("BOOLEAN", {"default": False, "tooltip": "Replace the original video instead of creating a suffixed copy"}),
-                "embed_workflow": ("BOOLEAN", {"default": True, "tooltip": "Embed ComfyUI prompt/workflow metadata in addition to Civitai parameters"}),
+                "embed_workflow": ("BOOLEAN", {"default": True, "tooltip": "Preserve the original ComfyUI workflow and execution graph. The compact Civitai metadata graph and generation parameters are saved even when disabled."}),
             },
             "optional": {
                 "metadata": ("METADATA", {"default": None, "tooltip": "Image Saver Metadata output containing prompt, hashes, and Civitai resources"}),
@@ -448,7 +448,7 @@ class ImageSaverSaveVideo:
                 "format": (["auto", "mp4"], {"default": "auto", "tooltip": "Container format. Native ComfyUI currently writes MP4."}),
                 "codec": (["auto", "h264"], {"default": "auto", "tooltip": "Video codec. Native component videos are encoded as H.264."}),
                 "crf": ("FLOAT", {"default": 23.0, "min": 0.0, "max": 51.0, "step": 1.0, "tooltip": "Quality for H.264 re-encoding when requested"}),
-                "embed_workflow": ("BOOLEAN", {"default": True, "tooltip": "Embed ComfyUI prompt/workflow metadata in addition to Civitai parameters"}),
+                "embed_workflow": ("BOOLEAN", {"default": True, "tooltip": "Preserve the original ComfyUI workflow and execution graph. The compact Civitai metadata graph and generation parameters are saved even when disabled."}),
             },
             "optional": {
                 "metadata": ("METADATA", {"default": None, "tooltip": "Image Saver Metadata output containing prompt, hashes, and Civitai resources"}),

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import math
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -61,12 +63,12 @@ def build_video_metadata(
     prompt: dict[str, Any] | None,
     extra_pnginfo: dict[str, Any] | None,
 ) -> dict[str, str]:
-    """Build the tags consumed by Civitai's proposed video metadata parser.
+    """Build container tags for Civitai's native ComfyUI video metadata reader.
 
     ``parameters`` remains the A1111-compatible source of positive/negative
-    prompts, settings, hashes, and Civitai resources. Structured tags preserve
-    the ComfyUI prompt/workflow and make the resource list available without
-    parsing the human-readable parameters string.
+    prompts, settings, hashes, and Civitai resources. A compact compatibility
+    graph supplies Civitai's native reader with the explicit saver settings.
+    The original execution graph and UI workflow are preserved separately.
     """
     tags: dict[str, str] = {}
 
@@ -79,9 +81,16 @@ def build_video_metadata(
         tags[str(key)] = _json_value(value)
 
     resources = extract_json_after(parameters, "Civitai resources:")
-    prompt_json = resources_to_prompt_json(metadata, resources)
+    prompt_json = resources_to_prompt_json(metadata, resources, prompt)
     if prompt_json:
         tags["prompt"] = prompt_json
+        # The compatibility graph describes the saved metadata, not the full
+        # execution. Retain the real graph for other readers and diagnostics.
+        if prompt is not None:
+            tags["prompt_original"] = _json_value(prompt)
+        # Civitai also stores these two fields as a JSON object. An explicit
+        # empty workflow keeps that object valid when workflow saving is off.
+        tags.setdefault("workflow", "{}")
     elif prompt is not None:
         tags["prompt"] = _json_value(prompt)
 
@@ -89,9 +98,7 @@ def build_video_metadata(
         serialized_resources = _json_value(resources)
         tags["civitaiResources"] = serialized_resources
 
-        # Keep this under the proposed generic metadata key too. This gives
-        # future readers a lossless structured fallback while parameters keeps
-        # compatibility with existing A1111/Civitai processors.
+        # Keep a structured fallback for readers that accept extraMetadata.
         extra_metadata = None
         if "extraMetadata" in tags:
             try:
@@ -110,74 +117,190 @@ def build_video_metadata(
 
     return tags
 
-def resources_to_prompt_json(metadata: Any | None, resources: dict | None):
-    """Creates a prompt graph for civitai to parse all metadata."""
-    if metadata is None:
+def _positive_id(value: Any) -> int | None:
+    """Accept a Civitai ID without coercing booleans or fractional numbers."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int) and value > 0:
+        return value
+    if isinstance(value, str) and value.isascii() and value.isdecimal() and int(value) > 0:
+        return int(value)
+    return None
+
+
+def _resource_identity(resource: dict[str, Any]) -> tuple[str, str] | None:
+    """Return an AIR and resource kind, including version-ID-only records.
+
+    Civitai's graph parser resolves the version portion of an AIR. Zero is a
+    placeholder for an unknown model ID, never a substitute version ID. No
+    lookup or guessed real model ID is needed when the version is known.
+    """
+    air = resource.get("air")
+    match = re.fullmatch(
+        r"urn:air:[\w/-]+:([\w/-]+):civitai:\d+@([1-9]\d*)(?:\+\d+)?(?:\.[\w-]+)?",
+        air,
+        flags=re.IGNORECASE,
+    ) if isinstance(air, str) else None
+    version_id = _positive_id(resource.get("modelVersionId"))
+    if match and (version_id is None or version_id == int(match[2])):
+        return air, match[1].lower()
+    if version_id is None:
+        return None
+    kind = resource.get("type")
+    kind = kind.lower() if isinstance(kind, str) else "other"
+    kind = {"textualinversion": "embedding", "locon": "lycoris"}.get(kind, kind)
+    if not re.fullmatch(r"[a-z0-9_/-]+", kind):
+        kind = "other"
+    model_id = _positive_id(resource.get("modelId")) or 0
+    return f"urn:air:other:{kind}:civitai:{model_id}@{version_id}", kind
+
+
+def _source_resource_nodes(prompt: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """Keep recognizable resource filenames when Civitai lookup data is absent."""
+    fields = {
+        "CheckpointLoader": "ckpt_name", "CheckpointLoaderSimple": "ckpt_name",
+        "CheckpointLoader|pysssss": "ckpt_name", "CheckpointLoaderSimple|pysssss": "ckpt_name",
+        "UNETLoader": "unet_name", "UnetLoaderGGUF": "unet_name",
+        "LoraLoader": "lora_name", "LoraLoaderModelOnly": "lora_name",
+        "LoraLoader|pysssss": "lora_name", "LoraLoaderModelOnly|pysssss": "lora_name",
+        "VAELoader": "vae_name", "UpscaleModelLoader": "model_name",
+        "ControlNetLoader": "control_net_name",
+    }
+    result = []
+    for node in (prompt or {}).values():
+        if not isinstance(node, dict) or node.get("class_type") not in fields:
+            continue
+        inputs = node.get("inputs")
+        if not isinstance(inputs, dict):
+            continue
+        key = fields[node["class_type"]]
+        # A filename supplied by another node is left in prompt_original;
+        # copying that link alone would point into the compatibility graph.
+        if not isinstance(inputs.get(key), str) or not inputs[key]:
+            continue
+        kept = {key: inputs[key]}
+        for strength in ("strength_model", "strength_clip"):
+            value = inputs.get(strength)
+            if isinstance(value, (int, float)) and math.isfinite(value):
+                kept[strength] = value
+        result.append({"class_type": node["class_type"], "inputs": kept})
+    return result
+
+
+def _resource_node_kind(inputs: dict[str, Any]) -> str:
+    """Group source filename controls without guessing a model from list order."""
+    for key, kind in (("unet_name", "model"), ("ckpt_name", "model"),
+                      ("lora_name", "lora"), ("vae_name", "vae"), ("model_name", "upscaler")):
+        if key in inputs:
+            return kind
+    return "controlnet"
+
+
+def _filename_key(name: str) -> str:
+    """Compare local resource filenames with the stem names in A1111 hashes."""
+    path = Path(name.replace("\\", "/"))
+    return (path.stem if path.suffix.lower() in {".safetensors", ".ckpt", ".pt", ".bin", ".gguf"} else path.name).casefold()
+
+
+def resources_to_prompt_json(
+    metadata: Any | None,
+    resources: list[dict[str, Any]] | None,
+    prompt: dict[str, Any] | None = None,
+) -> str | None:
+    """Describe saver settings as nodes understood by Civitai's graph parser.
+
+    This is a metadata compatibility graph, not a runnable replacement for the
+    saved UI workflow. Explicit resource IDs take priority; recognizable source
+    filenames are retained for kinds without a resolved resource.
+    """
+    if (not isinstance(getattr(metadata, "positive", None), str)
+            or not isinstance(getattr(metadata, "negative", None), str)):
         return None
 
-    model = None
-    loras = []
-    if resources:
-        for resource in resources:
-            if resource["type"] == "lora" or model is not None:
-                loras.append(resource)
-            else:
-                model = resource
+    graph: dict[str, Any] = {}
 
-    prompt_graph = {}
-    i = 1
-    if model is not None:
-        prompt_graph[1] = {
-            "class_type": "UNETLoader",
-            "inputs": {"unet_name": model["air"]},
-        }
-        i += 1
-    elif loras:
-        prompt_graph[1] = {
-            "class_type": "LoraLoaderModelOnly",
-            "inputs": {
-                "lora_name": loras[0]["air"],
-                "strength_model": loras[0]["weight"] if "weight" in loras[0] else 1,
-            },
-        }
-        del loras[0]
-        i += 1
+    def add_node(class_type: str, inputs: dict[str, Any]) -> list[Any]:
+        node_id = str(len(graph) + 1)
+        graph[node_id] = {"class_type": class_type, "inputs": inputs}
+        return [node_id, 0]
 
-    if loras:
-        for lora in loras:
-            prompt_graph[i] = {
-                "class_type": "LoraLoaderModelOnly",
-                "inputs": {
-                    "model": [str(i - 1), 0],
-                    "lora_name": lora["air"],
-                    "strength_model": lora["weight"] if "weight" in lora else 1,
-                },
-            }
-            i += 1
+    model_ref = None
+    resolved_kinds = set()
+    seen = set()
+    for resource in resources if isinstance(resources, list) else []:
+        if not isinstance(resource, dict):
+            continue
+        identity = _resource_identity(resource)
+        if not identity or identity[0] in seen:
+            continue
+        air, kind = identity
+        seen.add(air)
+        is_model = kind in {"checkpoint", "unet", "diffusionmodel", "model"}
+        resolved_kinds.add("model" if is_model else "lora" if kind in {"lora", "lycoris", "locon"} else kind)
+        if is_model:
+            model_ref = add_node("UNETLoader", {"unet_name": air})
+        else:
+            weight = resource.get("weight", 1.0)
+            if not isinstance(weight, (int, float)) or not math.isfinite(weight):
+                weight = 1.0
+            inputs = {"lora_name": air, "strength_model": weight}
+            if model_ref:
+                inputs["model"] = model_ref
+            # This recognized loader is a carrier for auxiliary AIRs too.
+            # Civitai uses the AIR's real type, not the loader's LoRA label.
+            reference = add_node("LoraLoaderModelOnly", inputs)
+            if kind in {"lora", "lycoris", "locon"}:
+                model_ref = reference
 
-    prompt_graph[i] = { "class_type": "CLIPTextEncode", "inputs": {"text": metadata.positive.strip()}}
-    i += 1
-    prompt_graph[i] = {"class_type": "CLIPTextEncode", "inputs": {"text": metadata.negative.strip()}}
-    i += 1
-    prompt_graph[i] = {"class_type": "EmptyLatentImage", "inputs": {"width": metadata.width, "height": metadata.height}}
-    i += 1
-    prompt_graph[i] = {
-        "class_type": "KSampler",
-        "inputs": {
-            "model": [str(i - 4), 0] if i > 4 else None,
-            "positive": [str(i - 3), 0],
-            "negative": [str(i - 2), 0],
-            "latent_image": [str(i - 1), 0],
-            "seed": metadata.seed,
-            "steps": metadata.steps,
-            "cfg": metadata.cfg,
-            "sampler_name": metadata.sampler_name,
-            "scheduler": metadata.scheduler_name,
-            "denoise": metadata.denoise,
-        },
+    for node in _source_resource_nodes(prompt):
+        inputs = node["inputs"]
+        kind = _resource_node_kind(inputs)
+        if kind in resolved_kinds:
+            continue
+        reference = add_node(node["class_type"], inputs)
+        if kind in {"model", "lora"}:
+            model_ref = reference
+
+    # A saver can have metadata without an embedded workflow. Retain its model
+    # filename even when Civitai downloads were disabled or the lookup failed.
+    modelname = getattr(metadata, "modelname", "")
+    has_model = any("unet_name" in node["inputs"] or "ckpt_name" in node["inputs"] for node in graph.values())
+    if not has_model and isinstance(modelname, str) and modelname and modelname.lower() not in {"unknown", "none"}:
+        model_ref = add_node("UNETLoader", {"unet_name": modelname})
+
+    # Hash entries are unresolved resources when lookups were attempted, or
+    # the complete local list when downloads were disabled. Their LoRA names
+    # remain useful even if no original graph was embedded.
+    hashes = extract_json_after(getattr(metadata, "a111_params", ""), "Hashes:")
+    lora_names = {
+        _filename_key(node["inputs"]["lora_name"])
+        for node in graph.values() if "lora_name" in node["inputs"]
     }
+    for name in hashes if isinstance(hashes, dict) else []:
+        if not isinstance(name, str) or not name.lower().startswith("lora:"):
+            continue
+        filename = name.split(":", 1)[1]
+        if not filename or _filename_key(filename) in lora_names:
+            continue
+        lora_names.add(_filename_key(filename))
+        inputs = {"lora_name": filename, "strength_model": 1.0}
+        if model_ref:
+            inputs["model"] = model_ref
+        model_ref = add_node("LoraLoaderModelOnly", inputs)
 
-    return json.dumps(prompt_graph, separators=(",", ":"), ensure_ascii=False)
+    positive = add_node("CLIPTextEncode", {"text": metadata.positive.strip()})
+    negative = add_node("CLIPTextEncode", {"text": metadata.negative.strip()})
+    latent = add_node("EmptyLatentImage", {"width": getattr(metadata, "width", 512), "height": getattr(metadata, "height", 512)})
+    inputs = {
+        "positive": positive, "negative": negative, "latent_image": latent,
+        "seed": getattr(metadata, "seed", 0), "steps": getattr(metadata, "steps", 20),
+        "cfg": getattr(metadata, "cfg", 7.0), "sampler_name": getattr(metadata, "sampler_name", "euler"),
+        "scheduler": getattr(metadata, "scheduler_name", "normal"), "denoise": getattr(metadata, "denoise", 1.0),
+    }
+    if model_ref:
+        inputs["model"] = model_ref
+    add_node("KSampler", inputs)
+    return _json_value(graph)
 
 
 def escape_ffmetadata(value: str) -> str:

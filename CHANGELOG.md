@@ -1,3 +1,10 @@
+# v1.27.0
+
+- Add a compact metadata graph that Civitai's native MP4/WebM upload reader can parse, based on ComplexRobot's contribution in PR #2.
+- Support resource version IDs without AIR strings and cached entries without resource types; retain model/LoRA filenames when lookup data is unavailable.
+- Preserve the original execution graph in `prompt_original`, the UI workflow in `workflow`, and the existing A1111/hash tags.
+- Add real MP4/WebM compatibility checks using Civitai's metadata parser and document native upload as the default path, with the extension available as a fallback.
+
 # Maintained fork additions
 
 - Add Civitai-compatible metadata saving for native ComfyUI VIDEO (including audio) and VideoHelperSuite outputs.

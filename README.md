@@ -16,13 +16,19 @@ You can also add LoRAs to the prompt in \<lora:name:weight\> format, which would
 
 ## Video metadata
 
-The video nodes preserve the same positive/negative prompts, settings, model and LoRA hashes, and Civitai resource list used by the image saver. They also write the ComfyUI prompt/workflow when enabled.
+The video nodes preserve the same positive/negative prompts, settings, model and LoRA hashes, and Civitai resource list used by the image saver. Civitai now reads ComfyUI metadata natively from MP4 and WebM uploads ([Civitai PR #5147](https://github.com/civitai/civitai/pull/5147)). Videos saved with this version can use that native upload flow.
 
 For native ComfyUI video workflows, use `Image Saver — Save Native Video (VIDEO + Audio)`. Connect the native `VIDEO` output from `Create Video` or another native video node to `video`, and connect `Image Saver Metadata` to `metadata`. This is the actual saver: it encodes the native frames plus optional audio, then adds metadata. Its filename prefix supports Image Saver placeholders such as `%time`, `%basemodelname`, and `%seed`.
 
 For VideoHelperSuite, keep `save_metadata` enabled on `Video Combine`, then connect its `VHS_FILENAMES` output to `Image Saver — Add Metadata to VHS Video` and connect `Image Saver Metadata` to `metadata`. This is not another video encoder: it post-processes files already written by VHS and creates a suffixed MP4/WebM copy by default, preserving the original and all existing video/audio streams.
 
-Both paths write an A1111-compatible `parameters` tag plus structured `prompt`, workflow/extra-info, `civitaiResources`, and `extraMetadata` tags. These are the tags the companion [Civitai Video Metadata Assistant](https://github.com/diodiogod/Civitai-Video-Metadata-Assistant) can read before upload while Civitai's native video-metadata support is still pending.
+Both paths write a compact ComfyUI compatibility graph to `prompt`, built from the explicit Image Saver Metadata inputs. Civitai reads this graph to recover positive/negative prompts, seed, steps, sampler, scheduler, guidance, dimensions, and resolved resource versions. This graph describes the saved metadata; the original UI workflow remains the workflow to load in ComfyUI.
+
+Keep `download_civitai_data` enabled on Image Saver Metadata to include resolved model-version IDs for native resource attribution. Existing AIR identifiers and version-ID-only records are supported. When lookup data is unavailable or disabled, recognizable model and LoRA filenames are retained, but native resource linking is not guaranteed from filenames alone.
+
+With workflow embedding enabled, the original UI workflow stays in `workflow` and the unmodified execution graph is retained in `prompt_original`. With it disabled, the video still contains the small compatibility graph, but not the original workflow/execution graph. A1111 `parameters`, hashes, `civitaiResources`, and `extraMetadata` are retained for other readers.
+
+The companion [Civitai Video Metadata Assistant](https://github.com/diodiogod/Civitai-Video-Metadata-Assistant) is an optional fallback for older videos, hash-based resource recovery, or metadata Civitai misses. Try the native upload with the extension disabled first; a browser extension is no longer required for the supported native path. Existing videos are not rewritten by updating this node pack.
 
 This would have civitai autodetect all of the resources (assuming the model/lora/embedding hashes match):
 ![image](https://github.com/alexopus/ComfyUI-Image-Saver/assets/25933468/f0642389-4f34-4a64-89a6-5cf9c33d5ed1)

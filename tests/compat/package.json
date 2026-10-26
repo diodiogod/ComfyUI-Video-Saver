@@ -1,0 +1,6 @@
+{
+  "name": "video-saver-civitai-compatibility-tests",
+  "private": true,
+  "scripts": { "test": "node --test video-metadata.test.cjs" },
+  "devDependencies": { "@civitai/generation-metadata": "0.4.0" }
+}

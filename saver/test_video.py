@@ -1,6 +1,7 @@
 import json
 import shutil
 import subprocess
+from copy import deepcopy
 from types import SimpleNamespace
 
 import pytest
@@ -10,9 +11,120 @@ from .video import (
     embed_video_metadata,
     escape_ffmetadata,
     native_video_metadata,
+    resources_to_prompt_json,
     select_vhs_video_file,
     unpack_vhs_filenames,
 )
+
+
+def video_metadata(resources=None, **overrides):
+    values = dict(
+        modelname="fallback.safetensors", positive="ABCD positive", negative="negative",
+        width=832, height=480, seed=42, steps=20, cfg=5.5,
+        sampler_name="dpmpp_2m", scheduler_name="karras", denoise=0.75,
+        a111_params='ABCD positive\nNegative prompt: negative\nSteps: 20, Hashes: {"model":"ABCDEF1234"}',
+    )
+    if resources is not None:
+        values["a111_params"] += ", Civitai resources: " + json.dumps(resources)
+    values.update(overrides)
+    return SimpleNamespace(**values)
+
+
+def sampler(graph):
+    return next(node["inputs"] for node in graph.values() if node["class_type"] == "KSampler")
+
+
+@pytest.mark.parametrize("resource", [
+    {"modelVersionId": 123, "type": "checkpoint"},
+    {"modelVersionId": "123", "type": "textualinversion"},
+    {"modelVersionId": 123},
+    {"air": "urn:air:sdxl:checkpoint:civitai:12@123"},
+    {"modelVersionId": 123, "type": "lora", "air": "invalid"},
+])
+def test_compatibility_graph_accepts_optional_air_and_type(resource):
+    graph = json.loads(resources_to_prompt_json(video_metadata(), [resource]))
+    assert any("@123" in str(node["inputs"]) for node in graph.values())
+    assert sampler(graph)["seed"] == 42
+
+
+def test_compatibility_graph_preserves_settings_and_source_graph():
+    original = {"99": {"class_type": "CustomVideoSampler", "inputs": {"prompt": "old"}}}
+    workflow = {"nodes": [{"id": 99, "type": "CustomVideoSampler"}]}
+    metadata = video_metadata([{"modelVersionId": 123, "type": "checkpoint"}])
+    tags = build_video_metadata(metadata, original, {"workflow": workflow})
+    graph = json.loads(tags["prompt"])
+    settings = sampler(graph)
+    assert graph[settings["positive"][0]]["inputs"]["text"] == "ABCD positive"
+    assert graph[settings["negative"][0]]["inputs"]["text"] == "negative"
+    assert graph[settings["latent_image"][0]]["inputs"] == {"width": 832, "height": 480}
+    assert settings["scheduler"] == "karras"
+    assert settings["denoise"] == 0.75
+    assert json.loads(tags["prompt_original"]) == original
+    assert json.loads(tags["workflow"]) == workflow
+    assert tags["parameters"] == metadata.a111_params
+
+
+def test_offline_graph_retains_original_resource_names_without_old_sampler():
+    original = {
+        "7": {"class_type": "UNETLoader", "inputs": {"unet_name": "original.safetensors"}},
+        "8": {"class_type": "LoraLoaderModelOnly", "inputs": {"model": ["7", 0], "lora_name": "style.safetensors", "strength_model": 0.6}},
+        "9": {"class_type": "KSampler", "inputs": {"seed": 1}},
+    }
+    tags = build_video_metadata(video_metadata(), original, None)
+    graph = json.loads(tags["prompt"])
+    assert any(node["inputs"].get("unet_name") == "original.safetensors" for node in graph.values())
+    assert any(node["inputs"].get("lora_name") == "style.safetensors" for node in graph.values())
+    assert len([node for node in graph.values() if node["class_type"] == "KSampler"]) == 1
+    assert sampler(graph)["seed"] == 42
+    assert json.loads(tags["prompt_original"]) == original
+
+
+def test_metadata_without_workflow_keeps_model_filename_and_valid_empty_workflow():
+    tags = build_video_metadata(video_metadata(), None, None)
+    assert any(node["inputs"].get("unet_name") == "fallback.safetensors" for node in json.loads(tags["prompt"]).values())
+    assert tags["workflow"] == "{}"
+    assert "prompt_original" not in tags
+
+
+@pytest.mark.parametrize("resources", [None, {}, [None, "invalid", {"modelVersionId": False}, {"modelVersionId": 1.5}]])
+def test_missing_or_malformed_resources_do_not_break_video_metadata(resources):
+    graph = json.loads(resources_to_prompt_json(video_metadata(), resources))
+    assert sampler(graph)["seed"] == 42
+
+
+def test_graph_builder_does_not_mutate_inputs_or_resource_weights():
+    resources = [{"modelVersionId": 123, "type": "lora", "weight": 0.0}]
+    before = deepcopy(resources)
+    graph = json.loads(resources_to_prompt_json(video_metadata(), resources))
+    assert resources == before
+    assert any(node["inputs"].get("strength_model") == 0.0 for node in graph.values())
+
+
+def test_auxiliary_resource_is_not_used_in_place_of_the_model():
+    graph = json.loads(resources_to_prompt_json(video_metadata(), [{"modelVersionId": 55, "type": "other"}]))
+    model = graph[sampler(graph)["model"][0]]
+    assert model["class_type"] == "UNETLoader"
+    assert model["inputs"]["unet_name"] == "fallback.safetensors"
+
+
+def test_unresolved_lora_hash_name_survives_without_original_workflow():
+    metadata = video_metadata(a111_params='positive\nSteps: 20, Hashes: {"LORA:unresolved":"ABCDEF1234"}')
+    graph = json.loads(resources_to_prompt_json(metadata, [{"modelVersionId": 123, "type": "lora"}]))
+    assert any(node["inputs"].get("lora_name") == "unresolved" for node in graph.values())
+
+
+def test_hash_names_do_not_duplicate_original_lora_filenames():
+    metadata = video_metadata(a111_params='positive\nSteps: 20, Hashes: {"LORA:style":"ABCDEF1234"}')
+    original = {"1": {"class_type": "LoraLoaderModelOnly", "inputs": {"lora_name": "style.safetensors"}}}
+    graph = json.loads(resources_to_prompt_json(metadata, None, original))
+    assert len([node for node in graph.values() if "lora_name" in node["inputs"]]) == 1
+
+
+def test_no_explicit_metadata_preserves_original_prompt():
+    original = {"1": {"class_type": "UNETLoader", "inputs": {"unet_name": "original"}}}
+    tags = build_video_metadata(None, original, {"workflow": {"nodes": []}})
+    assert json.loads(tags["prompt"]) == original
+    assert "prompt_original" not in tags
 
 
 def test_build_video_metadata_preserves_civitai_contract():

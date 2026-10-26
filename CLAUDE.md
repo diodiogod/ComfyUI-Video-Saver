@@ -125,6 +125,9 @@ Tests are split into two independent suites, each with its own `pytest.ini`, bec
 
 - `saver/test_saver.py` — image format/metadata writing (`save_image`), no ComfyUI dependency. Run with `cd saver && python -m pytest`.
 - `tests/test_paths.py` — output-path/filename containment (`resolve_within_output`, `ImageSaver.save_images`). `tests/conftest.py` stubs ComfyUI's runtime modules to import `nodes.py`/`utils.py` outside ComfyUI. Run with `cd tests && python -m pytest`.
+- `tests/compat/` — development-only Node.js tests against Civitai's pinned generation-metadata parser using real MP4/WebM fixtures with audio. See its README for Python/FFmpeg configuration and the optional native container-reader check. These packages are not Python runtime dependencies.
+
+Video metadata changes must keep both the compact compatibility graph and the original workflow/execution graph when embedding is enabled. Acceptance requires parser output assertions (prompts, settings, resource IDs/weights and offline filenames), not only assertions that JSON tags were written. Resource `air` and `type` fields are optional; `modelVersionId` is sufficient identity.
 
 ## Important Notes
 
