@@ -74,14 +74,17 @@ def build_video_metadata(
     if parameters:
         tags["parameters"] = parameters
 
-    if prompt is not None:
-        tags["prompt"] = _json_value(prompt)
-
     extra = dict(extra_pnginfo or {})
     for key, value in extra.items():
         tags[str(key)] = _json_value(value)
 
     resources = extract_json_after(parameters, "Civitai resources:")
+    prompt_json = resources_to_prompt_json(metadata, resources)
+    if prompt_json:
+        tags["prompt"] = prompt_json
+    elif prompt is not None:
+        tags["prompt"] = _json_value(prompt)
+
     if resources is not None:
         serialized_resources = _json_value(resources)
         tags["civitaiResources"] = serialized_resources
@@ -106,6 +109,75 @@ def build_video_metadata(
             raise ValueError(f"Video metadata field '{key}' exceeds the 2 MiB safety limit.")
 
     return tags
+
+def resources_to_prompt_json(metadata: Any | None, resources: dict | None):
+    """Creates a prompt graph for civitai to parse all metadata."""
+    if metadata is None:
+        return None
+
+    model = None
+    loras = []
+    if resources:
+        for resource in resources:
+            if resource["type"] == "lora" or model is not None:
+                loras.append(resource)
+            else:
+                model = resource
+
+    prompt_graph = {}
+    i = 1
+    if model is not None:
+        prompt_graph[1] = {
+            "class_type": "UNETLoader",
+            "inputs": {"unet_name": model["air"]},
+        }
+        i += 1
+    elif loras:
+        prompt_graph[1] = {
+            "class_type": "LoraLoaderModelOnly",
+            "inputs": {
+                "lora_name": loras[0]["air"],
+                "strength_model": loras[0]["weight"] if "weight" in loras[0] else 1,
+            },
+        }
+        del loras[0]
+        i += 1
+
+    if loras:
+        for lora in loras:
+            prompt_graph[i] = {
+                "class_type": "LoraLoaderModelOnly",
+                "inputs": {
+                    "model": [str(i - 1), 0],
+                    "lora_name": lora["air"],
+                    "strength_model": lora["weight"] if "weight" in lora else 1,
+                },
+            }
+            i += 1
+
+    prompt_graph[i] = { "class_type": "CLIPTextEncode", "inputs": {"text": metadata.positive.strip()}}
+    i += 1
+    prompt_graph[i] = {"class_type": "CLIPTextEncode", "inputs": {"text": metadata.negative.strip()}}
+    i += 1
+    prompt_graph[i] = {"class_type": "EmptyLatentImage", "inputs": {"width": metadata.width, "height": metadata.height}}
+    i += 1
+    prompt_graph[i] = {
+        "class_type": "KSampler",
+        "inputs": {
+            "model": [str(i - 4), 0] if i > 4 else None,
+            "positive": [str(i - 3), 0],
+            "negative": [str(i - 2), 0],
+            "latent_image": [str(i - 1), 0],
+            "seed": metadata.seed,
+            "steps": metadata.steps,
+            "cfg": metadata.cfg,
+            "sampler_name": metadata.sampler_name,
+            "scheduler": metadata.scheduler_name,
+            "denoise": metadata.denoise,
+        },
+    }
+
+    return json.dumps(prompt_graph, separators=(",", ":"), ensure_ascii=False)
 
 
 def escape_ffmetadata(value: str) -> str:
