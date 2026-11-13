@@ -156,9 +156,11 @@ def test_current_model_and_carried_hash_are_not_repeated(monkeypatch, download):
         assert next(iter(entries.values()))[2] == "ckpt_hash"
 
 
-def test_current_model_and_carried_version_are_not_repeated(monkeypatch):
+@pytest.mark.parametrize("version_id", [290640, "290640"])
+def test_current_model_and_carried_version_are_not_repeated(monkeypatch, version_id):
     monkeypatch.setattr(saver_nodes, "full_checkpoint_path_for", lambda _: "pony.safetensors")
     monkeypatch.setattr(saver_nodes, "get_sha256", lambda _: "ckpt_hash")
+    monkeypatch.setattr(utils_civitai, "get_civitai_info", lambda path, hash: INFOS["ckpt_hash"] | {"id": version_id})
     metadata, hashes, _ = ImageSaverMetadata().get_metadata(
         modelname="pony", additional_hashes="civitai:290640,urn:air:sdxl:checkpoint:civitai:257749@290640,OldModel:ckpt_hash")
     resources = extract_json_after(metadata.a111_params, "Civitai resources:")

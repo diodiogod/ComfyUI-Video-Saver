@@ -1,7 +1,7 @@
 # Unreleased
 
 - Add Read Video Metadata to recover reusable saver metadata from MP4/WebM files or a native Load Video output.
-- Add Read Image Metadata for PNG/JPEG/WebP. Both media readers output only METADATA; use the shared expander for individual fields.
+- Add Read Image Metadata for PNG/JPEG/WebP/AVIF. Both media readers output only METADATA; use the shared expander for individual fields.
 - Add Read Image Saver Metadata to expose individual prompts, seed, steps, CFG, sampler, scheduler, dimensions, and other saved fields.
 - Add a Video Upscaling — Preserve or Edit Metadata example workflow with original audio and optional prompt/settings changes.
 - Use one hashes output for all recovered hashes, Civitai version IDs/AIRs and weights; extend additional_hashes to accept the same comma-separated format.
@@ -11,6 +11,12 @@
 - Show an actionable warning popup for files without generation metadata and block dependent nodes without a traceback.
 - Support older V3 node schemas that do not expose the intermediate UI option.
 - Keep the native video saver compatible with older encoders that do not accept a CRF option.
+- Civitai lookups can no longer prevent an image from being saved: network errors and unreadable or unexpected `.civitai.info` files now fall back to the plain hashes. Requests time out after 15 seconds instead of 5 minutes, and a failed lookup is not retried for an hour instead of on every saved image.
+- A folder in the filename (e.g. `%date/img`) is now created instead of failing, existing files in it are no longer overwritten, and the UI preview shows the right image.
+- Cached Civitai info for manually added hashes always stays in `models/image-saver`, even if Civitai reports a file name containing a path.
+- Civitai Hash Fetcher: fixed the output becoming a single character when the node ran again with the same inputs.
+- README: AVIF output and how to check and upgrade Pillow for it.
+- Add `avif` output to Image Saver and Image Saver Simple (#141). Stores the A1111 parameters (EXIF `UserComment`) and the workflow/prompt (EXIF `Make`/`Model`, same layout as ComfyUI's native Save Image (Advanced)), so the file can be dragged back into ComfyUI. Quality comes from `quality_jpeg_or_webp`; alpha is preserved. Needs Pillow >= 11.2 built with AVIF support.
 
 # v1.27.1
 

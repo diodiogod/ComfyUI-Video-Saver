@@ -9,7 +9,7 @@ This is a maintained fork of [alexopus/ComfyUI-Image-Saver](https://github.com/a
 
 The original project was itself forked from [giriss/comfy-image-saver](https://github.com/giriss/comfy-image-saver).
 
-For images, the nodes save **generation metadata** compatible with Civitai geninfo detection. PNG, JPG, and WebP are supported. PNG stores the full ComfyUI workflow plus A1111-style parameters; JPEG/WebP store the A1111-style parameters. Model, LoRA, and embedding hashes are included for resource linking on Civitai.
+For images, the nodes save **generation metadata** compatible with Civitai geninfo detection. PNG, JPG, WebP, and AVIF are supported. All formats store A1111-style parameters and can embed the ComfyUI workflow (stable for PNG, experimental for WebP, and limited by the 64 KB EXIF limit for JPEG). AVIF requires a compatible Pillow build; see [AVIF support](#avif-support). Model, LoRA, and embedding hashes are included for resource linking on Civitai.
 
 You can find image examples in [`examples`](./examples) and the native/VHS video template in [`example_workflows`](./example_workflows).
 <img width="1288" height="1039" alt="workflow" src="https://github.com/user-attachments/assets/dbbb9f67-afa3-48a2-8cd3-e4116393f8e0" />
@@ -46,7 +46,7 @@ Try the [Video Upscaling — Preserve or Edit Metadata example](./example_workfl
 
 Use **Image Saver — Read Video Metadata** to recover the source video's metadata. Upload/select an MP4 or WebM, or connect the original native `Load Video` output to its optional `video` input. Connect the reader's `metadata` output directly to `metadata` on **Save Native Video** or **Add Metadata to VHS Video**; process the frames/audio with your usual nodes. For VHS, select the same source file in the reader and your VHS loader.
 
-For images, use **Image Saver — Read Image Metadata** with a PNG, JPEG, or WebP file. It reads PNG text metadata and JPEG/WebP EXIF, including Image Saver's parameters and embedded ComfyUI graphs. Select the original file: the decoded `IMAGE` output of Load Image does not carry file metadata. Its `metadata` output connects to the image/video savers or the shared expander.
+For images, use **Image Saver — Read Image Metadata** with a PNG, JPEG, WebP, or AVIF file. It reads PNG text metadata and JPEG/WebP/AVIF EXIF, including Image Saver's parameters and embedded ComfyUI graphs. Select the original file: the decoded `IMAGE` output of Load Image does not carry file metadata. Its `metadata` output connects to the image/video savers or the shared expander.
 
 The reader does not decode frames, hash model files, or contact Civitai. It preserves the source generation tags, including prompts, settings, hashes, resource versions, and weights. You do not need the original models installed. The output video's resolution can change while its metadata continues to describe the original generation.
 
@@ -96,6 +96,22 @@ If you don't have *ComfyUI-Manager*, then:
 - `cd ComfyUI-Video-Saver`
 - `pip install -r requirements.txt`
 - Start/restart ComfyUI
+
+### AVIF support
+Saving AVIF needs Pillow 11.2 or newer, built with AVIF support (the standard pip packages are). To check, run this with the Python that ComfyUI uses:
+
+```
+python -c "import PIL; from PIL import features; print(PIL.__version__, features.check('avif'))"
+```
+
+If it prints `False`, upgrade Pillow in that same environment, then restart ComfyUI:
+
+| Setup | Command |
+|---|---|
+| Windows portable | `python_embeded\python.exe -m pip install -U "pillow>=11.2"` (from the ComfyUI_windows_portable folder) |
+| venv / manual install | activate the venv, then `python -m pip install -U "pillow>=11.2"` |
+
+Linux distribution packages of Pillow can lack AVIF support even when they are new enough; use a venv with Pillow from pip in that case. All other formats work with any Pillow version.
 
 ## Customization of file/folder names
 

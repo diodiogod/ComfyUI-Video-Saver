@@ -130,6 +130,16 @@ def make_pathname(filename: str, width: int, height: int, seed: int, modelname: 
     sanitized_basename = sanitize_filename(basename)
     return os.path.join(directory, sanitized_basename)
 
+def preview_images(path: str, filenames: list[str]) -> list[dict[str, str]]:
+    """UI preview entries for saved files. `filenames` are relative to `path` and may contain a folder
+    (from the filename pattern); ComfyUI's /view only uses the basename of `filename`, so the folder must
+    go into `subfolder`."""
+    entries = []
+    for filename in filenames:
+        subfolder = os.path.normpath(os.path.join(path, os.path.dirname(filename)))
+        entries.append({"filename": os.path.basename(filename), "subfolder": subfolder if subfolder != '.' else '', "type": 'output'})
+    return entries
+
 def make_filename(filename: str, width: int, height: int, seed: int, modelname: str, counter: int, time_format: str, sampler_name: str, steps: int, cfg: float, scheduler_name: str, denoise: float, clip_skip: int, custom: str, label: str = "") -> str:
     filename = make_pathname(filename, width, height, seed, modelname, counter, time_format, sampler_name, steps, cfg, scheduler_name, denoise, clip_skip, custom, label)
     return get_timestamp(time_format) if filename == "" else filename
@@ -279,9 +289,9 @@ class ImageSaverSimple:
                 "images":                ("IMAGE",    {                                                             "tooltip": "image(s) to save"}),
                 "filename":              ("STRING",   {"default": '%time_%basemodelname_%seed', "multiline": False, "tooltip": "filename (available variables: %date, %time, %time_format<format>, %model, %width, %height, %seed, %counter, %counter<padding>, %sampler_name, %steps, %cfg, %scheduler_name, %basemodelname, %denoise, %clip_skip, %custom, %label)"}),
                 "path":                  ("STRING",   {"default": '', "multiline": False,                           "tooltip": "path to save the images (under Comfy's save directory)"}),
-                "extension":             (['png', 'jpeg', 'jpg', 'webp'], {                                         "tooltip": "file extension/type to save image as"}),
+                "extension":             (['png', 'jpeg', 'jpg', 'webp', 'avif'], {                                         "tooltip": "file extension/type to save image as"}),
                 "lossless_webp":         ("BOOLEAN",  {"default": True,                                             "tooltip": "if True, saved WEBP files will be lossless"}),
-                "quality_jpeg_or_webp":  ("INT",      {"default": 100, "min": 1, "max": 100,                        "tooltip": "quality setting of JPEG/WEBP"}),
+                "quality_jpeg_or_webp":  ("INT",      {"default": 100, "min": 1, "max": 100,                        "tooltip": "quality setting of JPEG/WEBP/AVIF"}),
                 "optimize_png":          ("BOOLEAN",  {"default": False,                                            "tooltip": "if True, saved PNG files will be optimized (can reduce file size but is slower)"}),
                 "embed_workflow":        ("BOOLEAN",  {"default": True,                                             "tooltip": "if True, embeds the workflow in the saved image files.\nStable for PNG, experimental for WEBP.\nJPEG experimental and only if metadata size is below 65535 bytes"}),
                 "save_workflow_as_json": ("BOOLEAN",  {"default": False,                                            "tooltip": "if True, also saves the workflow as a separate JSON file"}),
@@ -334,14 +344,12 @@ class ImageSaverSimple:
 
         filenames = ImageSaver.save_images(images, filename, extension, path, quality_jpeg_or_webp, lossless_webp, optimize_png, prompt, extra_pnginfo, save_workflow_as_json, embed_workflow, counter, time_format, metadata, label=label)
 
-        subfolder = os.path.normpath(path)
-
         result: dict[str, Any] = {
             "result": (metadata.final_hashes, metadata.a111_params),
         }
 
         if show_preview:
-            result["ui"] = {"images": [{"filename": filename, "subfolder": subfolder if subfolder != '.' else '', "type": 'output'} for filename in filenames]}
+            result["ui"] = {"images": preview_images(path, filenames)}
 
         return result
 
@@ -587,7 +595,7 @@ class ImageSaver:
                 "images":                ("IMAGE",   {                                                             "tooltip": "image(s) to save"}),
                 "filename":              ("STRING",  {"default": '%time_%basemodelname_%seed', "multiline": False, "tooltip": "filename (available variables: %date, %time, %time_format<format>, %model, %width, %height, %seed, %counter, %counter<padding>, %sampler_name, %steps, %cfg, %scheduler_name, %basemodelname, %denoise, %clip_skip, %custom, %label)"}),
                 "path":                  ("STRING",  {"default": '', "multiline": False,                           "tooltip": "path to save the images (under Comfy's save directory)"}),
-                "extension":             (['png', 'jpeg', 'jpg', 'webp'], {                                        "tooltip": "file extension/type to save image as"}),
+                "extension":             (['png', 'jpeg', 'jpg', 'webp', 'avif'], {                                        "tooltip": "file extension/type to save image as"}),
             },
             "optional": {
                 "steps":                 ("INT",     {"default": 20, "min": 0, "max": 10000,                       "tooltip": "number of steps"}),
@@ -601,7 +609,7 @@ class ImageSaver:
                 "width":                 ("INT",     {"default": 512, "min": 0, "max": MAX_RESOLUTION, "step": 8,  "tooltip": "image width"}),
                 "height":                ("INT",     {"default": 512, "min": 0, "max": MAX_RESOLUTION, "step": 8,  "tooltip": "image height"}),
                 "lossless_webp":         ("BOOLEAN", {"default": True,                                             "tooltip": "if True, saved WEBP files will be lossless"}),
-                "quality_jpeg_or_webp":  ("INT",     {"default": 100, "min": 1, "max": 100,                        "tooltip": "quality setting of JPEG/WEBP"}),
+                "quality_jpeg_or_webp":  ("INT",     {"default": 100, "min": 1, "max": 100,                        "tooltip": "quality setting of JPEG/WEBP/AVIF"}),
                 "optimize_png":          ("BOOLEAN", {"default": False,                                            "tooltip": "if True, saved PNG files will be optimized (can reduce file size but is slower)"}),
                 "counter":               ("INT",     {"default": 0, "min": 0, "max": 0xffffffffffffffff,           "tooltip": "counter"}),
                 "denoise":               ("FLOAT",   {"default": 1.0, "min": 0.0, "max": 1.0,                      "tooltip": "denoise value"}),
@@ -672,14 +680,12 @@ class ImageSaver:
 
         filenames = ImageSaver.save_images(images, filename, extension, path, quality_jpeg_or_webp, lossless_webp, optimize_png, prompt, extra_pnginfo, save_workflow_as_json, embed_workflow, counter, time_format, metadata, label=label)
 
-        subfolder = os.path.normpath(path)
-
         result: dict[str, Any] = {
             "result": (metadata.final_hashes, metadata.a111_params),
         }
 
         if show_preview:
-            result["ui"] = {"images": [{"filename": filename, "subfolder": subfolder if subfolder != '.' else '', "type": 'output'} for filename in filenames]}
+            result["ui"] = {"images": preview_images(path, filenames)}
 
         return result
 
@@ -702,6 +708,14 @@ class ImageSaver:
         label: str = "",
     ) -> list[str]:
         filename_prefix = make_filename(filename_pattern, metadata.width, metadata.height, metadata.seed, metadata.modelname, counter, time_format, metadata.sampler_name, metadata.steps, metadata.cfg, metadata.scheduler_name, metadata.denoise, metadata.clip_skip, metadata.custom, label)
+
+        # A filename like "%date/img" puts a folder into the filename: move it to the path, so that folder
+        # gets created and existing files in it are found when picking the numeric suffix (no overwrites)
+        filename_subdir, filename_prefix = os.path.split(filename_prefix)
+        if filename_subdir:
+            path = os.path.join(path, filename_subdir)
+        if not filename_prefix:
+            filename_prefix = get_timestamp(time_format)
 
         output_path = resolve_within_output(path)
 
@@ -730,7 +744,8 @@ class ImageSaver:
             if save_workflow_as_json:
                 save_json(extra_pnginfo, resolve_within_output(path, current_filename_prefix))
 
-            result_paths.append(final_filename)
+            # Relative to the caller's path, for the UI preview
+            result_paths.append(os.path.join(filename_subdir, final_filename))
         return result_paths
 
     @staticmethod

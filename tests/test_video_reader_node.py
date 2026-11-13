@@ -7,7 +7,7 @@ from types import SimpleNamespace, ModuleType
 import av
 import numpy as np
 import pytest
-from PIL import Image
+from PIL import Image, features
 from PIL.PngImagePlugin import PngInfo
 
 import comfy
@@ -21,6 +21,8 @@ from image_saver_under_test.saver.saver import save_image
 
 PARAMETERS = ('ABCD original\nNegative prompt: blurry\nSteps: 24, Sampler: DPM++ 2M Karras, '
               'CFG scale: 5.5, Seed: 123456, Size: 832x480, Model: original, Hashes: {"model":"ABCDEF1234"}')
+IMAGE_FORMATS = ["png", "jpeg", "webp", pytest.param("avif", marks=pytest.mark.skipif(
+    not features.check("avif"), reason="Pillow built without AVIF support"))]
 
 
 @pytest.fixture
@@ -136,7 +138,7 @@ def test_missing_metadata_blocks_downstream_and_reports_warning_without_raising(
     assert output.ui == {"metadata_warning": [message]}
 
 
-@pytest.mark.parametrize("extension", ["png", "jpeg", "webp"])
+@pytest.mark.parametrize("extension", IMAGE_FORMATS)
 def test_image_reader_returns_only_metadata_and_uses_shared_expander(reader_module, tmp_path, monkeypatch, extension):
     file = tmp_path / f"source.{extension}"
     save_image(Image.new("RGB", (16, 16)), str(file), extension, 95, True, False,
@@ -151,7 +153,7 @@ def test_image_reader_returns_only_metadata_and_uses_shared_expander(reader_modu
     assert reader_module.ReadImageSaverMetadata.execute(metadata).result[5:10] == (123456, 24, 5.5, "dpmpp_2m", "karras")
 
 
-@pytest.mark.parametrize("extension", ["png", "jpeg", "webp"])
+@pytest.mark.parametrize("extension", IMAGE_FORMATS)
 def test_plain_image_is_an_expected_warning(reader_module, tmp_path, monkeypatch, extension):
     file = tmp_path / f"plain.{extension}"
     Image.new("RGB", (8, 8)).save(file)
@@ -191,7 +193,7 @@ def test_native_png_graph_without_parameters_can_be_expanded(reader_module, tmp_
     assert metadata.source_metadata_tags["prompt"] == json.dumps(graph)
 
 
-@pytest.mark.parametrize("extension", ["png", "jpeg", "webp"])
+@pytest.mark.parametrize("extension", IMAGE_FORMATS)
 def test_image_read_save_roundtrip_preserves_source_prompt_and_parameters(reader_module, tmp_path, monkeypatch, extension):
     source = tmp_path / f"source.{extension}"
     original_prompt = {"1": {"class_type": "OriginalGeneration", "inputs": {"seed": 123456}}}
@@ -284,7 +286,7 @@ def test_creator_and_expander_hashes_have_the_same_complete_format(reader_module
         assert next(value for value in entries.values() if value[2] == "DEADBEEF12")[1] == 0.65
 
 
-@pytest.mark.parametrize("extension", ["png", "jpeg", "webp"])
+@pytest.mark.parametrize("extension", IMAGE_FORMATS)
 def test_reader_export_plus_extra_hash_writes_new_prompt_and_all_resources(reader_module, tmp_path, monkeypatch, extension):
     source_resources = [{"modelVersionId": 101, "type": "checkpoint"},
                         {"modelVersionId": 102, "type": "lora", "weight": 0.65}]
@@ -348,7 +350,7 @@ def test_graph_only_airs_and_saved_lora_hash_weights_are_exported(reader_module)
 
 
 @pytest.mark.parametrize("download", [False, True])
-@pytest.mark.parametrize("extension", ["png", "jpeg", "webp"])
+@pytest.mark.parametrize("extension", IMAGE_FORMATS)
 def test_unresolved_weighted_hash_survives_save_and_reexport(reader_module, tmp_path, monkeypatch, download, extension):
     monkeypatch.setattr(utils_civitai, "get_civitai_info", lambda path, hash: None)
     metadata = ImageSaverMetadata().get_metadata(positive="Upscale prompt", negative="",

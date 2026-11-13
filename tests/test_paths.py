@@ -5,11 +5,13 @@ Regression tests for the output-path/filename containment fix in nodes.py
 See conftest.py for how nodes.py/utils.py get imported without a full ComfyUI
 install.
 """
+import os
+
 import numpy as np
 import pytest
 
 import folder_paths
-from image_saver_under_test.nodes import ImageSaver, Metadata
+from image_saver_under_test.nodes import ImageSaver, Metadata, preview_images
 from image_saver_under_test.utils import resolve_within_output
 
 
@@ -85,6 +87,31 @@ def test_rejects_traversal_via_filename(output_dir):
     with pytest.raises(ValueError):
         call_save_images(path="safe", filename="../../../escape")
     assert list(output_dir.rglob("*.png")) == []
+
+
+def test_folder_in_filename_is_created(output_dir):
+    assert call_save_images(path="safe", filename="sub/img") == [os.path.join("sub", "img.png")]
+    assert (output_dir / "safe" / "sub" / "img.png").is_file()
+
+
+def test_folder_in_filename_does_not_overwrite(output_dir):
+    call_save_images(path="", filename="sub/img")
+    second = call_save_images(path="", filename="sub/img")
+    assert second == [os.path.join("sub", "img_01.png")]
+    assert sorted(p.name for p in (output_dir / "sub").iterdir()) == ["img.png", "img_01.png"]
+
+
+@pytest.mark.parametrize("path,filename,expected", [
+    ("", "img", {"filename": "img.png", "subfolder": ""}),
+    ("safe", "img", {"filename": "img.png", "subfolder": "safe"}),
+    ("", "sub/img", {"filename": "img.png", "subfolder": "sub"}),
+    ("safe", "sub/img", {"filename": "img.png", "subfolder": os.path.join("safe", "sub")}),
+])
+def test_preview_puts_folder_in_subfolder(path, filename, expected, output_dir):
+    # ComfyUI's /view uses only the basename of `filename`, so any folder must be in `subfolder`
+    [entry] = preview_images(path, call_save_images(path=path, filename=filename))
+    assert entry == expected | {"type": "output"}
+    assert (output_dir / entry["subfolder"] / entry["filename"]).is_file()
 
 
 def test_rejects_traversal_via_json_sidecar(output_dir):

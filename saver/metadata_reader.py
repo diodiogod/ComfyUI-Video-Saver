@@ -74,7 +74,7 @@ def read_video_tags(source) -> tuple[dict[str, str], int, int]:
 
 
 def read_image_tags(source) -> tuple[dict[str, str], int, int]:
-    """Read PNG text and JPEG/WebP EXIF written by Image Saver or ComfyUI."""
+    """Read PNG text and JPEG/WebP/AVIF EXIF written by Image Saver or ComfyUI."""
     with Image.open(source) as image:
         tags = {
             GENERATION_TAG_NAMES[key.lower()]: value for key, value in image.info.items()

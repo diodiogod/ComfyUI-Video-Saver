@@ -106,12 +106,12 @@ class ImageSaverReadImageMetadata(io.ComfyNode):
     def define_schema(cls):
         input_dir = Path(folder_paths.get_input_directory())
         files = sorted(path.name for path in input_dir.iterdir()
-                       if path.is_file() and path.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"})
+                       if path.is_file() and path.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp", ".avif"})
         return io.Schema(
             node_id="Image Saver Read Image Metadata",
             display_name="Image Saver — Read Image Metadata",
             category="ImageSaver",
-            description="Read prompts, settings and hashes from a PNG/JPEG/WebP file. Connect metadata to an Image Saver or Read Image Saver Metadata for individual fields. Reads the source file, not decoded IMAGE tensors.",
+            description="Read prompts, settings and hashes from a PNG/JPEG/WebP/AVIF file. Connect metadata to an Image Saver or Read Image Saver Metadata for individual fields. Reads the source file, not decoded IMAGE tensors.",
             search_aliases=["image prompt reader", "load image metadata"],
             inputs=[io.Combo.Input("file", options=files, upload=io.UploadType.image,
                                    tooltip="Select/upload the original image. Image tensors from Load Image do not contain file metadata.")],
@@ -122,8 +122,8 @@ class ImageSaverReadImageMetadata(io.ComfyNode):
     @classmethod
     def execute(cls, file):
         source = folder_paths.get_annotated_filepath(file)
-        if Path(source).suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
-            raise ValueError("Select a PNG, JPEG or WebP image.")
+        if Path(source).suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp", ".avif"}:
+            raise ValueError("Select a PNG, JPEG, WebP or AVIF image.")
         try:
             tags, width, height = read_image_tags(source)
         except MissingGenerationMetadata as error:
@@ -139,8 +139,8 @@ class ImageSaverReadImageMetadata(io.ComfyNode):
     def validate_inputs(cls, file):
         if not folder_paths.exists_annotated_filepath(file):
             return "The selected source image does not exist."
-        if Path(folder_paths.get_annotated_filepath(file)).suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
-            return "Select a PNG, JPEG or WebP image."
+        if Path(folder_paths.get_annotated_filepath(file)).suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp", ".avif"}:
+            return "Select a PNG, JPEG, WebP or AVIF image."
         return True
 
 
