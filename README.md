@@ -40,6 +40,42 @@ With workflow embedding enabled, the original UI workflow stays in `workflow` an
 
 The companion [Civitai Video Metadata Assistant](https://github.com/diodiogod/Civitai-Video-Metadata-Assistant) is an optional fallback for older videos, hash-based resource recovery, or metadata Civitai misses. Try the native upload with the extension disabled first; a browser extension is no longer required for the supported native path. Existing videos are not rewritten by updating this node pack.
 
+### Preserve metadata through upscaling or another workflow
+
+Try the [Video Upscaling — Preserve or Edit Metadata example](./example_workflows/video-upscale-preserve-or-edit-metadata.json). It preserves original metadata by default and includes an optional branch for new prompts/settings and carried resource references. See the [example instructions](./example_workflows/README.md) before running it.
+
+Use **Image Saver — Read Video Metadata** to recover the source video's metadata. Upload/select an MP4 or WebM, or connect the original native `Load Video` output to its optional `video` input. Connect the reader's `metadata` output directly to `metadata` on **Save Native Video** or **Add Metadata to VHS Video**; process the frames/audio with your usual nodes. For VHS, select the same source file in the reader and your VHS loader.
+
+For images, use **Image Saver — Read Image Metadata** with a PNG, JPEG, or WebP file. It reads PNG text metadata and JPEG/WebP EXIF, including Image Saver's parameters and embedded ComfyUI graphs. Select the original file: the decoded `IMAGE` output of Load Image does not carry file metadata. Its `metadata` output connects to the image/video savers or the shared expander.
+
+The reader does not decode frames, hash model files, or contact Civitai. It preserves the source generation tags, including prompts, settings, hashes, resource versions, and weights. You do not need the original models installed. The output video's resolution can change while its metadata continues to describe the original generation.
+
+Both media readers output only `METADATA`. To inspect or reuse individual values, connect it to **Read Image Saver Metadata**. It exposes `modelname`, positive/negative prompts, width, height, seed, steps, CFG, sampler, scheduler, denoise, clip skip, hashes, and the original A1111 parameter text. Sampler and scheduler outputs connect directly to compatible sampler inputs. This expander also accepts the existing **Image Saver Metadata** output; **Read Image Saver Pipe** remains the reader for pipe configurations.
+
+The **`hashes`** output carries **all available resource references and weights** in one comma-separated string: literal hashes, Civitai model-version IDs, and AIRs. The metadata creator and savers use the same format. The historical socket name is retained, but a resource stored as an ID/AIR does not need to be converted to a hash. Only information embedded in the source file can be recovered; reading metadata makes no Civitai requests.
+
+To keep the source resources while writing a **new upscale prompt and settings**, connect the expander's **`hashes`** output to **`additional_hashes`** on **Image Saver Metadata**. Supply the new prompt/settings there, then connect its `metadata` output to the native VIDEO saver, VHS metadata saver, or Image Saver Simple. The all-in-one Image Saver also accepts the string directly. To add more resources manually, join the exported text and your extra entries with a comma.
+
+The input accepts a mixture of these formats:
+
+| Reference | Example |
+| --- | --- |
+| Hash, optionally named and weighted | `ExtraLoRA:ABCDEF1234:0.8` |
+| Civitai **model-version ID**, optionally weighted | `civitai:123456:0.65` |
+| AIR, optionally weighted | `urn:air:sdxl:lora:civitai:12@123456:0.65` |
+
+Export preserves embedded IDs/AIRs and available weights without requesting hashes from Civitai. When a resource has a saved type but no AIR, the exporter can encode that type in an AIR using model ID `0` as an unknown-model placeholder; the real version ID is retained. Direct IDs/AIRs and their weights are saved even with `download_civitai_data` disabled. Keep that setting enabled to resolve additional hashes into resource IDs/weights. Matching hashes and matching versions are included once, with the current workflow's detected resource taking precedence over a carried reference; repeated manual entries keep the first occurrence. Without a successful lookup, an unrelated hash and an ID cannot always be recognized as the same resource. The existing 30-manual-entry limit applies.
+
+Weighted hashes that cannot be resolved are retained in a `Resource references` parameter field, so their weights can be recovered on the next read even without a Civitai lookup.
+
+This path carries resource attribution into the new metadata. Use the original complete `METADATA` connection instead when you want to preserve the source generation metadata unchanged, including its prompt and workflow history.
+
+With `embed_workflow` enabled on the saver, the current processing workflow is saved in `workflow`, the original generation workflow is retained in `workflow_original`, and the processing execution graph is stored separately in `prompt_postprocess`. The source `prompt`, `prompt_original`, parameters, and resource records remain intact. Disabling workflow embedding omits the workflow history while retaining generation metadata.
+
+Individual field extraction supports A1111 parameters and standard ComfyUI sampler/conditioning graphs, including this pack's Civitai compatibility graph. Unsupported custom graphs are still preserved, but individual values may be unavailable and use the saver defaults. Metadata stripped from a source file cannot be recovered.
+
+If a valid file contains no generation metadata, the reader shows a warning popup and blocks its dependent branch without a traceback or invented metadata. Reload ComfyUI's page after updating to load the notification extension. Corrupt files and invalid metadata still report normal errors.
+
 This would have civitai autodetect all of the resources (assuming the model/lora/embedding hashes match):
 ![image](https://github.com/alexopus/ComfyUI-Image-Saver/assets/25933468/f0642389-4f34-4a64-89a6-5cf9c33d5ed1)
 

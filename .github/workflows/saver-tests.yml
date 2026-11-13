@@ -25,7 +25,7 @@ jobs:
     - name: Install test dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pytest pillow piexif numpy requests
+        pip install pytest pillow piexif numpy requests av
 
     - name: Test saver module
       run: |
@@ -53,6 +53,9 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y ffmpeg
+        python -m pip install av pillow piexif
         npm ci --prefix tests/compat --ignore-scripts
     - name: Test native Civitai video metadata compatibility
       run: npm test --prefix tests/compat
+    - name: Test metadata-reader notifications
+      run: node --test tests/metadata-reader-ui.test.cjs

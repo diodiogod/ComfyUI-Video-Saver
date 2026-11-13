@@ -1,3 +1,17 @@
+# Unreleased
+
+- Add Read Video Metadata to recover reusable saver metadata from MP4/WebM files or a native Load Video output.
+- Add Read Image Metadata for PNG/JPEG/WebP. Both media readers output only METADATA; use the shared expander for individual fields.
+- Add Read Image Saver Metadata to expose individual prompts, seed, steps, CFG, sampler, scheduler, dimensions, and other saved fields.
+- Add a Video Upscaling — Preserve or Edit Metadata example workflow with original audio and optional prompt/settings changes.
+- Use one hashes output for all recovered hashes, Civitai version IDs/AIRs and weights; extend additional_hashes to accept the same comma-separated format.
+- Preserve direct resource IDs/AIRs without Civitai lookups, deduplicate matching versions, and allow a new prompt/settings to be saved with carried resources.
+- Retain unresolved hash weights in saved parameters for later reads and reuse.
+- Preserve original generation tags and resource versions through native VIDEO and VHS postprocessing, while keeping the processing workflow separately.
+- Show an actionable warning popup for files without generation metadata and block dependent nodes without a traceback.
+- Support older V3 node schemas that do not expose the intermediate UI option.
+- Keep the native video saver compatible with older encoders that do not accept a CRF option.
+
 # v1.27.1
 
 - Clarify that compatible native VIDEO and VHS outputs can be uploaded directly to Civitai without the browser extension.

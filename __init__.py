@@ -8,6 +8,7 @@ from .nodes_selectors import SamplerSelector, SchedulerSelector, SchedulerSelect
 from .civitai_nodes import CivitaiHashFetcher
 from .random_tag_picker import RandomTagPicker, RandomCharacterPicker, RandomArtistPicker
 from .nodes_vae import VAEForceIndividualImages
+from .nodes_metadata_reader import ImageSaverReadImageMetadata, ImageSaverReadVideoMetadata, ReadImageSaverMetadata
 
 NODE_CLASS_MAPPINGS: dict[str, Any] = {
     "Checkpoint Loader with Name (Image Saver)": CheckpointLoaderWithName,
@@ -23,6 +24,9 @@ NODE_CLASS_MAPPINGS: dict[str, Any] = {
     "Image Saver (From Pipe)": ImageSaverFromPipe,
     "Image Saver Video Metadata": ImageSaverVideoMetadata,
     "Image Saver Save Video": ImageSaverSaveVideo,
+    "Image Saver Read Video Metadata": ImageSaverReadVideoMetadata,
+    "Image Saver Read Image Metadata": ImageSaverReadImageMetadata,
+    "Read Image Saver Metadata": ReadImageSaverMetadata,
     "Sampler Selector (Image Saver)": SamplerSelector,
     "Scheduler Selector (Image Saver)": SchedulerSelector,
     "Scheduler Selector (inspire) (Image Saver)": SchedulerSelectorInspire,
@@ -52,6 +56,8 @@ WEB_DIRECTORY = "js"
 NODE_DISPLAY_NAME_MAPPINGS = {
     "Image Saver Save Video": "Image Saver — Save Native Video (VIDEO + Audio)",
     "Image Saver Video Metadata": "Image Saver — Add Metadata to VHS Video",
+    "Image Saver Read Video Metadata": "Image Saver — Read Video Metadata",
+    "Image Saver Read Image Metadata": "Image Saver — Read Image Metadata",
 }
 
 __all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS', 'WEB_DIRECTORY']

@@ -129,6 +129,8 @@ Tests are split into two independent suites, each with its own `pytest.ini`, bec
 
 Video metadata changes must keep both the compact compatibility graph and the original workflow/execution graph when embedding is enabled. Acceptance requires parser output assertions (prompts, settings, resource IDs/weights and offline filenames), not only assertions that JSON tags were written. Resource `air` and `type` fields are optional; `modelVersionId` is sufficient identity.
 
+For metadata readers, test both a populated file and a valid file with no metadata. Expected absence must produce an actionable UI warning and silently block dependent nodes, rather than raise an execution error or return invented metadata. Corrupt files remain errors. Check that each reader exposes only METADATA and use Read Image Saver Metadata for individual fields. Frontend notification tests run with `node --test tests/metadata-reader-ui.test.cjs`. With ComfyUI's Python, `python tests/runtime_metadata_readers.py` checks warning delivery, cached UI replay where supported, and downstream blocking in its real executor without opening a server port. Use `--comfy-root <checkout>` to check each supported ComfyUI version, including GET_NODE_INFO_V1 serialization. New optional V3 schema fields must be checked against the installed constructor before passing them; test both strict older and current schema signatures.
+
 ## Important Notes
 
 - Hash files (`.sha256`) are cached alongside model files to avoid recalculation

@@ -12,6 +12,8 @@ import tempfile
 from pathlib import Path
 from typing import Any, Iterable
 
+from .resource_refs import parse_reference, resource_identity
+
 
 MAX_METADATA_VALUE_BYTES = 2 * 1024 * 1024
 
@@ -70,6 +72,33 @@ def build_video_metadata(
     graph supplies Civitai's native reader with the explicit saver settings.
     The original execution graph and UI workflow are preserved separately.
     """
+    source_tags = getattr(metadata, "source_metadata_tags", None)
+    if source_tags is not None:
+        tags = dict(source_tags)
+        if "prompt" not in tags and tags.get("parameters"):
+            resources = extract_json_after(tags["parameters"], "Civitai resources:")
+            if resources is None and tags.get("civitaiResources"):
+                resources = json.loads(tags["civitaiResources"])
+            compatibility_prompt = resources_to_prompt_json(metadata, resources)
+            if compatibility_prompt:
+                tags["prompt"] = compatibility_prompt
+        if extra_pnginfo is not None:
+            for key, value in extra_pnginfo.items():
+                if key == "workflow":
+                    if tags.get("workflow") and tags["workflow"] != "{}":
+                        tags.setdefault("workflow_original", tags["workflow"])
+                    tags["workflow"] = _json_value(value)
+                elif key not in tags:
+                    tags[str(key)] = _json_value(value)
+        if prompt is not None:
+            tags["prompt_postprocess"] = _json_value(prompt)
+        if prompt is None and extra_pnginfo is None:
+            for key in ("workflow_original", "prompt_original", "prompt_postprocess"):
+                tags.pop(key, None)
+            tags["workflow"] = "{}"
+        tags.setdefault("workflow", "{}")
+        return _check_metadata_size(tags)
+
     tags: dict[str, str] = {}
 
     parameters = getattr(metadata, "a111_params", "") if metadata is not None else ""
@@ -111,49 +140,14 @@ def build_video_metadata(
         elif "extraMetadata" not in tags:
             tags["extraMetadata"] = _json_value({"civitaiResources": resources})
 
-    for key, value in list(tags.items()):
+    return _check_metadata_size(tags)
+
+
+def _check_metadata_size(tags: dict[str, str]) -> dict[str, str]:
+    for key, value in tags.items():
         if len(value.encode("utf-8")) > MAX_METADATA_VALUE_BYTES:
             raise ValueError(f"Video metadata field '{key}' exceeds the 2 MiB safety limit.")
-
     return tags
-
-def _positive_id(value: Any) -> int | None:
-    """Accept a Civitai ID without coercing booleans or fractional numbers."""
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, int) and value > 0:
-        return value
-    if isinstance(value, str) and value.isascii() and value.isdecimal() and int(value) > 0:
-        return int(value)
-    return None
-
-
-def _resource_identity(resource: dict[str, Any]) -> tuple[str, str] | None:
-    """Return an AIR and resource kind, including version-ID-only records.
-
-    Civitai's graph parser resolves the version portion of an AIR. Zero is a
-    placeholder for an unknown model ID, never a substitute version ID. No
-    lookup or guessed real model ID is needed when the version is known.
-    """
-    air = resource.get("air")
-    match = re.fullmatch(
-        r"urn:air:[\w/-]+:([\w/-]+):civitai:\d+@([1-9]\d*)(?:\+\d+)?(?:\.[\w-]+)?",
-        air,
-        flags=re.IGNORECASE,
-    ) if isinstance(air, str) else None
-    version_id = _positive_id(resource.get("modelVersionId"))
-    if match and (version_id is None or version_id == int(match[2])):
-        return air, match[1].lower()
-    if version_id is None:
-        return None
-    kind = resource.get("type")
-    kind = kind.lower() if isinstance(kind, str) else "other"
-    kind = {"textualinversion": "embedding", "locon": "lycoris"}.get(kind, kind)
-    if not re.fullmatch(r"[a-z0-9_/-]+", kind):
-        kind = "other"
-    model_id = _positive_id(resource.get("modelId")) or 0
-    return f"urn:air:other:{kind}:civitai:{model_id}@{version_id}", kind
-
 
 def _source_resource_nodes(prompt: dict[str, Any] | None) -> list[dict[str, Any]]:
     """Keep recognizable resource filenames when Civitai lookup data is absent."""
@@ -230,7 +224,7 @@ def resources_to_prompt_json(
     for resource in resources if isinstance(resources, list) else []:
         if not isinstance(resource, dict):
             continue
-        identity = _resource_identity(resource)
+        identity = resource_identity(resource)
         if not identity or identity[0] in seen:
             continue
         air, kind = identity
@@ -272,6 +266,19 @@ def resources_to_prompt_json(
     # the complete local list when downloads were disabled. Their LoRA names
     # remain useful even if no original graph was embedded.
     hashes = extract_json_after(getattr(metadata, "a111_params", ""), "Hashes:")
+    references = extract_json_after(getattr(metadata, "a111_params", ""), "Resource references:")
+    hash_weights = {}
+    for entry in references if isinstance(references, list) else []:
+        parsed = parse_reference(entry) if isinstance(entry, str) else None
+        if parsed and parsed[1] is not None:
+            hash_weights[parsed[2].lower()] = parsed[1]
+    weighted_names = {_filename_key(name.split(":", 1)[1]): hash_weights[str(value).lower()]
+                      for name, value in hashes.items() if isinstance(name, str) and name.lower().startswith("lora:")
+                      and str(value).lower() in hash_weights} if isinstance(hashes, dict) else {}
+    for node in graph.values():
+        filename = node["inputs"].get("lora_name")
+        if isinstance(filename, str) and _filename_key(filename) in weighted_names:
+            node["inputs"]["strength_model"] = weighted_names[_filename_key(filename)]
     lora_names = {
         _filename_key(node["inputs"]["lora_name"])
         for node in graph.values() if "lora_name" in node["inputs"]
@@ -283,7 +290,7 @@ def resources_to_prompt_json(
         if not filename or _filename_key(filename) in lora_names:
             continue
         lora_names.add(_filename_key(filename))
-        inputs = {"lora_name": filename, "strength_model": 1.0}
+        inputs = {"lora_name": filename, "strength_model": hash_weights.get(str(hashes[name]).lower(), 1.0)}
         if model_ref:
             inputs["model"] = model_ref
         model_ref = add_node("LoraLoaderModelOnly", inputs)

@@ -5,8 +5,7 @@ from typing import List, Dict, Tuple, Any
 import folder_paths
 
 from .utils import http_get_json
-
-MAX_HASH_LENGTH = 16 # skip larger unshortened hashes, such as full sha256 or blake3
+from .saver.resource_refs import MAX_HASH_LENGTH, resource_from_identifier
 
 """
 Represent the given embedding name as key as detected by civitAI
@@ -71,9 +70,19 @@ def get_civitai_metadata(
     civitai_resources: List[Dict[str, str | float]] = []
     hashes = {}
     add_model_hash = None
+    direct_resources = []
+    manual_hashes = {}
+    for name, (path, weight, identifier) in manual_entries.items():
+        resource = resource_from_identifier(identifier)
+        if resource is not None:
+            if weight is not None:
+                resource["weight"] = weight
+            direct_resources.append(resource)
+        else:
+            manual_hashes[name] = (path, weight, identifier)
 
     if download_civitai_data:
-        for name, (filepath, weight, hash) in ({ modelname: ( ckpt_path, None, modelhash ) } | loras | embeddings | manual_entries).items():
+        for name, (filepath, weight, hash) in ({ modelname: ( ckpt_path, None, modelhash ) } | loras | embeddings | manual_hashes).items():
             civitai_info = get_civitai_info(filepath, hash)
             if civitai_info is not None:
                 resource_data: Dict[str, str | float] = {}
@@ -108,10 +117,20 @@ def get_civitai_metadata(
                     hashes[name] = hash.upper()
     else:
         # Convert all hashes to JSON format
-        hashes = {key: value[2] for key, value in embeddings.items()} | {key: value[2] for key, value in loras.items()} | {key: value[2] for key, value in manual_entries.items()} | {"model": modelhash}
+        hashes = {key: value[2] for key, value in embeddings.items()} | {key: value[2] for key, value in loras.items()} | {key: value[2] for key, value in manual_hashes.items()} | {"model": modelhash}
         add_model_hash = modelhash
 
-    return civitai_resources, hashes, add_model_hash
+    # Keep the current workflow's resolved resource/weight first. Fill missing
+    # identity fields from carried references without adding the version twice.
+    by_version = {}
+    for resource in civitai_resources + direct_resources:
+        version = resource["modelVersionId"]
+        if version in by_version:
+            for key, value in resource.items():
+                by_version[version].setdefault(key, value)
+        else:
+            by_version[version] = resource.copy()
+    return list(by_version.values()), hashes, add_model_hash
 
 def get_civitai_info(path: Path | str | None, model_hash: str) -> dict[str, Any] | None:
     try:

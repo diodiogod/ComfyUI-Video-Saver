@@ -259,7 +259,7 @@ class ImageSaverFromPipe:
 
     RETURN_TYPES = ("IMAGESAVER_PIPE", "STRING", "STRING")
     RETURN_NAMES = ("pipe", "hashes", "a1111_params")
-    OUTPUT_TOOLTIPS = ("The pass-through Image Saver Pipe", "Comma-separated list of the hashes to chain with other Image Saver additional_hashes","Written parameters to the image metadata")
+    OUTPUT_TOOLTIPS = ("The pass-through Image Saver Pipe", "All resource references and weights (hashes, Civitai version IDs or AIRs). Connect to additional_hashes or join more entries with commas.","Written parameters to the image metadata")
     FUNCTION = "save_files"
 
     OUTPUT_NODE = True

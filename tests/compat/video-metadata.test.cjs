@@ -20,7 +20,7 @@ function parse(tags) {
 }
 
 for (const fixture of fixtures) {
-  test(`${fixture.container}: Civitai parses ${fixture.case} without the browser extension`, async () => {
+  test(`${fixture.container}: Civitai parses ${fixture.case} (${fixture.stage || 'saved'}) without the browser extension`, async () => {
     const allTags = Object.fromEntries(Object.entries(fixture.probe.format.tags).map(([key, value]) => [key.toLowerCase(), value]));
     // Match the deployed reader's allowlist. Optionally run Civitai's actual
     // pinned video-tags.ts as well, rather than relying on FFprobe extraction.
@@ -30,36 +30,45 @@ for (const fixture of fixtures) {
       tags = await readVideoTags(new Blob([Buffer.from(fixture.bytes, 'base64')]));
     }
     const metadata = parse(tags);
-    assert.equal(metadata.prompt, 'ABCD positive');
-    assert.equal(metadata.negativePrompt, 'negative');
-    assert.equal(metadata.seed, 42);
-    assert.equal(metadata.steps, 20);
-    assert.equal(metadata.cfgScale, 5.5);
-    assert.equal(metadata.sampler, 'DPM++ 2M Karras');
+    const upscale = fixture.stage === 'upscale';
+    assert.equal(metadata.prompt, upscale ? 'New upscale prompt' : 'ABCD positive');
+    assert.equal(metadata.negativePrompt, upscale ? 'new negative' : 'negative');
+    assert.equal(metadata.seed, upscale ? 99 : 42);
+    assert.equal(metadata.steps, upscale ? 12 : 20);
+    assert.equal(metadata.cfgScale, upscale ? 4 : 5.5);
+    assert.equal(metadata.sampler, upscale ? 'Euler' : 'DPM++ 2M Karras');
     assert.equal(metadata.denoise, 0.75);
-    assert.equal(metadata.width, 832);
-    assert.equal(metadata.height, 480);
+    assert.equal(metadata.width, upscale ? 1024 : 832);
+    assert.equal(metadata.height, upscale ? 768 : 480);
     const versions = metadata.civitaiResources || [];
     const ids = versions.map((resource) => resource.modelVersionId).sort((a, b) => a - b);
-    const expected = { air: [101, 102], id_only: [101, 102], missing_type: [103], embedding: [104], auxiliary: [105], invalid_air: [106], offline: [], no_workflow: [101] };
-    assert.deepEqual(ids, expected[fixture.case]);
+    const expected = { air: [101, 102], id_only: [101, 102], missing_type: [103], embedding: [104], auxiliary: [105], invalid_air: [106], offline: [], unresolved_weighted: [], no_workflow: [101] };
+    assert.deepEqual(ids, upscale ? [101, 102, 107] : expected[fixture.case]);
+    if (upscale) assert.equal(versions.find((resource) => resource.modelVersionId === 107).weight, 0.6);
     if (['air', 'id_only'].includes(fixture.case)) {
       assert.equal(versions.find((resource) => resource.modelVersionId === 102).weight, 0.8);
     }
     if (fixture.case === 'embedding') assert.equal(versions[0].type, 'embedding');
-    if (fixture.case === 'offline') {
+    if (['offline', 'unresolved_weighted'].includes(fixture.case)) {
       assert.equal(metadata.Model, 'original');
       assert.equal(metadata.additionalResources[0].name, 'style.safetensors');
-      assert.equal(metadata.additionalResources[0].strength, 0.6);
+      assert.equal(metadata.additionalResources[0].strength, fixture.case === 'unresolved_weighted' ? 0.65 : 0.6);
     }
     assert.match(allTags.parameters, /ABCDEF1234/);
     assert.match(allTags.parameters, /123456ABCD/);
-    if (fixture.case !== 'no_workflow') {
+    if (upscale) {
+      assert.equal(JSON.parse(allTags.prompt_original)['999'].class_type, 'UpscaleVideo');
+      assert.equal(JSON.parse(tags.workflow).extra.note, 'upscale');
+    } else if (fixture.case !== 'no_workflow') {
       assert.equal(JSON.parse(allTags.prompt_original)['3'].class_type, 'CustomVideoSampler');
-      assert.equal(JSON.parse(tags.workflow).extra.note, 'preserve me');
+      if (fixture.stage === 'restored') {
+        assert.equal(JSON.parse(tags.workflow).extra.note, 'processing workflow');
+        assert.equal(JSON.parse(allTags.workflow_original).extra.note, 'preserve me');
+      } else assert.equal(JSON.parse(tags.workflow).extra.note, 'preserve me');
     } else {
       assert.equal(allTags.prompt_original, undefined);
-      assert.deepEqual(JSON.parse(tags.workflow), {});
+      if (fixture.stage === 'restored') assert.equal(JSON.parse(tags.workflow).extra.note, 'processing workflow');
+      else assert.deepEqual(JSON.parse(tags.workflow), {});
     }
     const streams = fixture.probe.streams;
     assert.equal(streams.find((stream) => stream.codec_type === 'video').codec_name, fixture.container === 'mp4' ? 'h264' : 'vp9');

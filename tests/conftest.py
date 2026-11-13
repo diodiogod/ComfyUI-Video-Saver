@@ -44,9 +44,9 @@ def _install_comfyui_stubs() -> None:
     comfy.__path__ = []  # mark as a package so `comfy.sd1_clip` resolves under it
     _stub_module(
         "comfy.sd1_clip",
-        escape_important=lambda *a, **kw: None,
-        unescape_important=lambda *a, **kw: None,
-        token_weights=lambda *a, **kw: None,
+        escape_important=lambda text: text,
+        unescape_important=lambda text: text,
+        token_weights=lambda text, weight: [(text, weight)],
     )
 
 
