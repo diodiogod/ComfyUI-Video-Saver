@@ -1,4 +1,6 @@
-# Unreleased
+# v1.28.0
+
+- Include upstream Image Saver updates through v1.27.1, including v1.27.0's AVIF support. This fork maintains its own release versions.
 
 - Add Read Video Metadata to recover reusable saver metadata from MP4/WebM files or a native Load Video output.
 - Add Read Image Metadata for PNG/JPEG/WebP/AVIF. Both media readers output only METADATA; use the shared expander for individual fields.

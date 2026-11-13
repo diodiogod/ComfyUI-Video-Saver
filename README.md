@@ -42,7 +42,7 @@ The companion [Civitai Video Metadata Assistant](https://github.com/diodiogod/Ci
 
 ### Preserve metadata through upscaling or another workflow
 
-Try the [Video Upscaling — Preserve or Edit Metadata example](./example_workflows/video-upscale-preserve-or-edit-metadata.json). It preserves original metadata by default and includes an optional branch for new prompts/settings and carried resource references. See the [example instructions](./example_workflows/README.md) before running it.
+Try the [Video Upscaling — Preserve or Edit Metadata example](./example_workflows/video-upscale-preserve-or-edit-metadata.json). This is a metadata wiring example: its 2x resize only enlarges the frames, with no sampler or denoising pass. For diffusion upscaling, replace that section with your own sampling/denoising workflow. It preserves original metadata by default and includes an optional branch for new prompts/settings and carried resource references. See the [example instructions](./example_workflows/README.md) before running it.
 
 Use **Image Saver — Read Video Metadata** to recover the source video's metadata. Upload/select an MP4 or WebM, or connect the original native `Load Video` output to its optional `video` input. Connect the reader's `metadata` output directly to `metadata` on **Save Native Video** or **Add Metadata to VHS Video**; process the frames/audio with your usual nodes. For VHS, select the same source file in the reader and your VHS loader.
 
