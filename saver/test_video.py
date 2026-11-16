@@ -2,6 +2,7 @@ import json
 import subprocess
 import sys
 from copy import deepcopy
+from contextlib import contextmanager
 from fractions import Fraction
 from pathlib import Path
 from types import SimpleNamespace
@@ -232,7 +233,8 @@ def source_video(tmp_path, request):
 def stream_packets(path):
     with av.open(str(path)) as container:
         streams = [(stream.type, stream.codec_context.name, stream.codec_context.codec_tag,
-                    stream.metadata.get("language"), stream.disposition) for stream in container.streams]
+                    stream.metadata.get("language"), stream.disposition,
+                    stream.average_rate if stream.type == "video" else None) for stream in container.streams]
         packets = [[] for stream in container.streams]
         for packet in container.demux():
             if packet.size:
@@ -240,9 +242,10 @@ def stream_packets(path):
                     bytes(packet),
                     packet.pts * packet.time_base if packet.pts is not None else None,
                     packet.dts * packet.time_base if packet.dts is not None else None,
-                    packet.duration * packet.time_base,
                 ))
-        return streams, packets
+        # Older PyAV can omit WebM packet-duration hints after remuxing.
+        # Compare presentation timestamps and the actual container duration.
+        return container.duration, streams, packets
 
 
 @pytest.mark.parametrize("overwrite", [False, True])
@@ -272,11 +275,22 @@ def test_embed_video_metadata_without_ffmpeg(source_video, overwrite, monkeypatc
 
 def test_embed_video_metadata_failure_preserves_original(source_video, monkeypatch):
     original_bytes = source_video.read_bytes()
+    open_container = av.open
 
     def fail_mux(*args, **kwargs):
         raise av.error.InvalidDataError(1094995529, "Invalid data")
 
-    monkeypatch.setattr(av.container.OutputContainer, "mux", fail_mux)
+    @contextmanager
+    def open_with_failing_mux(path, mode="r", **kwargs):
+        with open_container(path, mode=mode, **kwargs) as container:
+            if mode == "w":
+                yield SimpleNamespace(metadata=container.metadata,
+                                      add_stream_from_template=container.add_stream_from_template,
+                                      mux=fail_mux)
+            else:
+                yield container
+
+    monkeypatch.setattr(av, "open", open_with_failing_mux)
     with pytest.raises(RuntimeError, match="Could not write video metadata"):
         embed_video_metadata(source_video, {"parameters": "positive"}, overwrite=True)
     assert source_video.read_bytes() == original_bytes
