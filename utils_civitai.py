@@ -7,7 +7,7 @@ import folder_paths
 
 from .utils import http_get_json
 
-MAX_HASH_LENGTH = 16 # skip larger unshortened hashes, such as full sha256 or blake3
+from .saver.resource_refs import MAX_HASH_LENGTH, positive_id, resource_from_identifier
 
 """
 Represent the given embedding name as key as detected by civitAI
@@ -72,9 +72,19 @@ def get_civitai_metadata(
     civitai_resources: List[Dict[str, str | float]] = []
     hashes = {}
     add_model_hash = None
+    direct_resources = []
+    manual_hashes = {}
+    for name, (path, weight, identifier) in manual_entries.items():
+        resource = resource_from_identifier(identifier)
+        if resource is not None:
+            if weight is not None:
+                resource["weight"] = weight
+            direct_resources.append(resource)
+        else:
+            manual_hashes[name] = (path, weight, identifier)
 
     if download_civitai_data:
-        for name, (filepath, weight, hash) in ({ modelname: ( ckpt_path, None, modelhash ) } | loras | embeddings | manual_entries).items():
+        for name, (filepath, weight, hash) in ({ modelname: ( ckpt_path, None, modelhash ) } | loras | embeddings | manual_hashes).items():
             # Never let Civitai problems (network, unexpected cache content) abort saving the image
             try:
                 resource_data = make_civitai_resource(get_civitai_info(filepath, hash), weight)
@@ -91,15 +101,28 @@ def get_civitai_metadata(
                     hashes[name] = hash.upper()
     else:
         # Convert all hashes to JSON format
-        hashes = {key: value[2] for key, value in embeddings.items()} | {key: value[2] for key, value in loras.items()} | {key: value[2] for key, value in manual_entries.items()} | {"model": modelhash}
+        hashes = {key: value[2] for key, value in embeddings.items()} | {key: value[2] for key, value in loras.items()} | {key: value[2] for key, value in manual_hashes.items()} | {"model": modelhash}
         add_model_hash = modelhash
 
-    return civitai_resources, hashes, add_model_hash
+    # Keep the current workflow's resolved resource/weight first. Fill missing
+    # identity fields from carried references without adding the version twice.
+    by_version = {}
+    for resource in civitai_resources + direct_resources:
+        version = resource["modelVersionId"]
+        if version in by_version:
+            for key, value in resource.items():
+                by_version[version].setdefault(key, value)
+        else:
+            by_version[version] = resource.copy()
+    return list(by_version.values()), hashes, add_model_hash
 
 def make_civitai_resource(civitai_info: dict[str, Any] | None, weight: float | None) -> Dict[str, str | float] | None:
     """Build a "Civitai resources" entry, or None if the info is missing or not in the expected format
     (e.g. a .civitai.info file written by another tool)."""
-    if not isinstance(civitai_info, dict) or not isinstance(civitai_info.get("model"), dict) or "id" not in civitai_info:
+    if not isinstance(civitai_info, dict) or not isinstance(civitai_info.get("model"), dict):
+        return None
+    version_id = positive_id(civitai_info.get("id"))
+    if version_id is None:
         return None
     resource_data: Dict[str, str | float] = {}
 
@@ -109,7 +132,7 @@ def make_civitai_resource(civitai_info: dict[str, Any] | None, weight: float | N
 
     # Required data - modelVersionId (unique resource identifier)
     # Civitai also accepts an AIR alone, but other tools (e.g. Stability Matrix) only read modelVersionId
-    resource_data["modelVersionId"] = civitai_info["id"]
+    resource_data["modelVersionId"] = version_id
 
     # Resource type as named by Civitai, lowercased (checkpoint, lora, locon, textualinversion, ...)
     resource_type = civitai_info["model"].get("type")

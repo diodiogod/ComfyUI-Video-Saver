@@ -15,6 +15,7 @@ from nodes import MAX_RESOLUTION
 
 from .saver.saver import save_image
 from .utils import sanitize_filename, resolve_within_output, get_sha256, full_checkpoint_path_for
+from .saver.resource_refs import export_resource_references, format_reference, parse_reference, resource_from_identifier
 from .utils_civitai import get_civitai_sampler_name, get_civitai_metadata, MAX_HASH_LENGTH
 from .prompt_metadata_extractor import PromptMetadataExtractor
 
@@ -164,7 +165,7 @@ class ImageSaverMetadata:
                 "scheduler_name":        ("STRING",  {"default": 'normal', "multiline": False,                     "tooltip": "scheduler name (as string)"}),
                 "denoise":               ("FLOAT",   {"default": 1.0, "min": 0.0, "max": 1.0,                      "tooltip": "denoise value"}),
                 "clip_skip":             ("INT",     {"default": 0, "min": -24, "max": 24,                         "tooltip": "skip last CLIP layers (positive or negative value, 0 for no skip)"}),
-                "additional_hashes":     ("STRING",  {"default": "", "multiline": False,                           "tooltip": "hashes separated by commas, optionally with names. 'Name:HASH' (e.g., 'MyLoRA:FF735FF83F98')\nWith download_civitai_data set to true, weights can be added as well. (e.g., 'HASH:Weight', 'Name:HASH:Weight')"}),
+                "additional_hashes":     ("STRING",  {"default": "", "multiline": False,                           "tooltip": "Comma-separated resource references: Name:HASH:weight, civitai:VERSION_ID:weight, or AIR:weight. Connect hashes from Expand Image Saver Metadata, or join more entries with commas. Matching hashes and resolved versions are deduplicated."}),
                 "download_civitai_data": ("BOOLEAN", {"default": True,                                             "tooltip": "Download and cache data from civitai.com to save correct metadata. Allows LoRA weights to be saved to the metadata."}),
                 "easy_remix":            ("BOOLEAN", {"default": True,                                             "tooltip": "Strip LoRAs and simplify 'embedding:path' from the prompt to make the Remix option on civitai.com more seamless."}),
                 "custom":                ("STRING",  {"default": "", "multiline": False,                           "tooltip": "custom string to add to the metadata, inserted into the a111 string between clip skip and model hash"}),
@@ -173,7 +174,7 @@ class ImageSaverMetadata:
 
     RETURN_TYPES = ("METADATA","STRING","STRING")
     RETURN_NAMES = ("metadata","hashes","a1111_params")
-    OUTPUT_TOOLTIPS = ("metadata for Image Saver Simple","Comma-separated list of the hashes to chain with other Image Saver additional_hashes","Written parameters to the image metadata")
+    OUTPUT_TOOLTIPS = ("metadata for Image Saver Simple","All resource references and weights (hashes, Civitai version IDs or AIRs), for additional_hashes","Written parameters to the image metadata")
     FUNCTION = "get_metadata"
     CATEGORY = "ImageSaver"
     DESCRIPTION = "Prepare metadata for Image Saver Simple"
@@ -241,39 +242,24 @@ class ImageSaverMetadata:
         )
 
         # Add Civitai resource listing
-        if download_civitai_data and civitai_resources:
+        if civitai_resources:
             a111_params += f", Civitai resources: {json.dumps(civitai_resources, separators=(',', ':'))}"
 
-        # Combine all resources (model, loras, embeddings, manual entries) for final hash string
+        # Export resolved versions plus hashes that could not be resolved.
         all_resources = { modelname: ( ckpt_path, None, modelhash ) } | loras | embeddings | manual_entries
+        unresolved_hashes = {value.lower() for value in hashes.values() if isinstance(value, str)}
+        if add_model_hash:
+            unresolved_hashes.add(add_model_hash.lower())
 
-        hash_parts = []
-        for name, (_, weight, hash_value) in (all_resources.items() if isinstance(all_resources, dict) else all_resources):
-            # Format: "name:hash" or "name:hash:weight" depending on download_civitai_data
-            if name:
-                # Extract clean name (only remove actual model file extensions, preserve dots in model names)
-                filename = name.split(':')[-1]
-                name_without_ext, ext = os.path.splitext(filename)
-                supported_extensions = folder_paths.supported_pt_extensions | {".gguf"}
-
-                # Only remove extension if it's a known model file extension
-                if ext.lower() in supported_extensions:
-                    clean_name = name_without_ext
-                else:
-                    clean_name = filename  # Keep full name if extension isn't recognized
-
-                name_part = f"{clean_name}:"
-            else:
-                name_part = ""
-
-            # Skip entries without a valid hash
-            if not hash_value:
-                continue
-
-            weight_part = f":{weight}" if weight is not None and download_civitai_data else ""
-            hash_parts.append(f"{name_part}{hash_value}{weight_part}")
-
-        final_hashes = ",".join(hash_parts)
+        hash_parts = [format_reference(name, weight, hash_value)
+                      for name, (_, weight, hash_value) in all_resources.items()
+                      if hash_value and hash_value.lower() in unresolved_hashes]
+        final_hashes = export_resource_references(civitai_resources, ",".join(hash_parts))
+        weighted_references = [format_reference(name, weight, identifier)
+                               for name, (_, weight, identifier) in all_resources.items()
+                               if weight is not None and identifier.lower() in unresolved_hashes]
+        if weighted_references:
+            a111_params += f", Resource references: {json.dumps(weighted_references, separators=(',', ':'))}"
 
         metadata = Metadata(modelname, positive, negative, width, height, seed_value, steps, cfg, sampler_name, scheduler_name, denoise, clip_skip, custom, additional_hashes, ckpt_path, a111_params, final_hashes)
         return metadata
@@ -308,7 +294,7 @@ class ImageSaverSimple:
 
     RETURN_TYPES = ("STRING","STRING")
     RETURN_NAMES = ("hashes","a1111_params")
-    OUTPUT_TOOLTIPS = ("Comma-separated list of the hashes to chain with other Image Saver additional_hashes","Written parameters to the image metadata")
+    OUTPUT_TOOLTIPS = ("All resource references and weights (hashes, Civitai version IDs or AIRs), for additional_hashes","Written parameters to the image metadata")
     FUNCTION = "save_images"
 
     OUTPUT_NODE = True
@@ -380,7 +366,7 @@ class ImageSaver:
                 "time_format":           ("STRING",  {"default": "%Y-%m-%d-%H%M%S", "multiline": False,            "tooltip": "timestamp format"}),
                 "save_workflow_as_json": ("BOOLEAN", {"default": False,                                            "tooltip": "if True, also saves the workflow as a separate JSON file"}),
                 "embed_workflow":        ("BOOLEAN", {"default": True,                                             "tooltip": "if True, embeds the workflow in the saved image files.\nStable for PNG, experimental for WEBP.\nJPEG experimental and only if metadata size is below 65535 bytes"}),
-                "additional_hashes":     ("STRING",  {"default": "", "multiline": False,                           "tooltip": "hashes separated by commas, optionally with names. 'Name:HASH' (e.g., 'MyLoRA:FF735FF83F98')\nWith download_civitai_data set to true, weights can be added as well. (e.g., 'HASH:Weight', 'Name:HASH:Weight')"}),
+                "additional_hashes":     ("STRING",  {"default": "", "multiline": False,                           "tooltip": "Comma-separated resource references: Name:HASH:weight, civitai:VERSION_ID:weight, or AIR:weight. Connect hashes from Expand Image Saver Metadata, or join more entries with commas. Matching hashes and resolved versions are deduplicated."}),
                 "download_civitai_data": ("BOOLEAN", {"default": True,                                             "tooltip": "Download and cache data from civitai.com to save correct metadata. Allows LoRA weights to be saved to the metadata."}),
                 "easy_remix":            ("BOOLEAN", {"default": True,                                             "tooltip": "Strip LoRAs and simplify 'embedding:path' from the prompt to make the Remix option on civitai.com more seamless."}),
                 "show_preview":          ("BOOLEAN", {"default": True,                                             "tooltip": "if True, displays saved images in the UI preview"}),
@@ -395,7 +381,7 @@ class ImageSaver:
 
     RETURN_TYPES = ("STRING","STRING")
     RETURN_NAMES = ("hashes","a1111_params")
-    OUTPUT_TOOLTIPS = ("Comma-separated list of the hashes to chain with other Image Saver additional_hashes","Written parameters to the image metadata")
+    OUTPUT_TOOLTIPS = ("All resource references and weights (hashes, Civitai version IDs or AIRs), for additional_hashes","Written parameters to the image metadata")
     FUNCTION = "save_files"
 
     OUTPUT_NODE = True
@@ -507,11 +493,6 @@ class ImageSaver:
             result_paths.append(os.path.join(filename_subdir, final_filename))
         return result_paths
 
-    # Match 'anything' or 'anything:anything' with trimmed white space
-    re_manual_hash = re.compile(r'^\s*([^:]+?)(?:\s*:\s*([^\s:][^:]*?))?\s*$')
-    # Match 'anything', 'anything:anything' or 'anything:anything:number' with trimmed white space
-    re_manual_hash_weights = re.compile(r'^\s*([^:]+?)(?:\s*:\s*([^\s:][^:]*?))?(?:\s*:\s*([-+]?(?:\d+(?:\.\d*)?|\.\d+)))?\s*$')
-
     @staticmethod
     def get_multiple_models(modelname: str, additional_hashes: str) -> tuple[str, str]:
         model_names = [m.strip() for m in modelname.split(',')]
@@ -530,50 +511,36 @@ class ImageSaver:
 
     @staticmethod
     def parse_manual_hashes(additional_hashes: str, existing_hashes: set[str], download_civitai_data: bool) -> dict[str, tuple[str | None, float | None, str]]:
-        """Process additional_hashes input (a string) by normalizing, removing extra spaces/newlines, and splitting by comma"""
+        """Accept legacy hashes and explicit resource references without lookups."""
         manual_entries: dict[str, tuple[str | None, float | None, str]] = {}
         unnamed_count = 0
+        seen = set()
 
         additional_hash_split = additional_hashes.replace("\n", ",").split(",") if additional_hashes else []
         for entry in additional_hash_split:
-            match = (ImageSaver.re_manual_hash_weights if download_civitai_data else ImageSaver.re_manual_hash).search(entry)
-            if match is None:
-                print(f"ComfyUI-Image-Saver: Invalid additional hash string: '{entry}'")
+            if not entry.strip():
                 continue
-
-            groups = tuple(group for group in match.groups() if group)
-
-            # Read weight and remove from groups, if needed
-            weight = None
-            if download_civitai_data and len(groups) > 1:
-                try:
-                    weight = float(groups[-1])
-                    groups = groups[:-1]
-                except (ValueError, TypeError):
-                    pass
-
-            # Read hash, optionally preceded by name
-            name, hash = groups if len(groups) > 1 else (None, groups[0])
-
-            if len(hash) > MAX_HASH_LENGTH:
-                print(f"ComfyUI-Image-Saver: Skipping hash. Length exceeds maximum of {MAX_HASH_LENGTH} characters: {hash}")
+            parsed = parse_reference(entry)
+            if parsed is None:
+                print(f"ComfyUI-Image-Saver: Invalid additional resource reference: '{entry}'")
                 continue
-
-            if any(hash.lower() == existing_hash.lower() for _, _, existing_hash in manual_entries.values()):
-                print(f"ComfyUI-Image-Saver: Skipping duplicate hash: {hash}")
-                continue  # Skip duplicates
-
-            if hash.lower() in existing_hashes:
-                print(f"ComfyUI-Image-Saver: Skipping manual hash already present in resources: {hash}")
+            name, weight, identifier = parsed
+            resource = resource_from_identifier(identifier)
+            key = ("version", resource["modelVersionId"]) if resource else ("hash", identifier.lower())
+            if key in seen or (resource is None and identifier.lower() in existing_hashes):
                 continue
+            seen.add(key)
 
             if name is None:
-                unnamed_count += 1
-                name = f"manual{unnamed_count}"
+                if resource:
+                    name = f"civitai:{resource['modelVersionId']}"
+                else:
+                    unnamed_count += 1
+                    name = f"manual{unnamed_count}"
             elif name in manual_entries:
                 print(f"ComfyUI-Image-Saver: Duplicate manual hash name '{name}' is being overwritten.")
 
-            manual_entries[name] = (None, weight, hash)
+            manual_entries[name] = (None, weight, identifier)
 
             if len(manual_entries) > 29:
                 print("ComfyUI-Image-Saver: Reached maximum limit of 30 manual hashes. Skipping the rest.")

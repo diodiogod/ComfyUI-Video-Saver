@@ -103,8 +103,13 @@ To change parts of the metadata before saving, put **Edit Metadata** in between.
 
 - `positive`, `negative`, `modelname`: `[original]` keeps the text, `[original], 4k` appends, other text replaces it, empty text removes it (same as Edit Image Saver Pipe).
 - `seed`, `steps`, `cfg`, `width`, `height`, `denoise`, `clip_skip`, `sampler_name`, `scheduler_name`: only change when connected, e.g. the size of the upscaled image or the denoise of a second pass.
-- `remove_settings`: comma-separated settings to remove, e.g. `Civitai resources, Hashes, Model hash`.
-- `remove_resources`: comma-separated resources to remove from `Hashes`, `Civitai resources` and `Lora hashes`/`TI hashes`, by name (e.g. `EasyNegative`, or the Civitai name shown in the loader's table), hash, Civitai version ID or AIR. Useful after removing embeddings or LoRAs from a prompt; the model's hash stays.
+- `additional_hashes`: add resource references while retaining the existing list. Accepts `Name:HASH:weight`, `civitai:VERSION_ID:weight`, or an AIR with optional weight. Matching hashes/versions merge; an explicitly supplied weight updates the resource's weight. References are saved without looking up models or contacting Civitai. A hash and an unrelated version ID cannot be identified as the same resource offline.
+- **Remove resources:** check resources from the source list, which shows readable names, versions, identifiers and weights. Unchecked resources are preserved.
+- **Remove settings (advanced):** choose existing settings with their current values; no need to type A1111 setting names. API workflows can still supply `remove_settings`/`remove_resources` as comma-separated strings or JSON arrays of selectors.
+
+The editor previews the result before execution when connected to Load Image with Metadata, including chains of editors and reroutes. Values computed by processing nodes require a workflow run; the panel then shows the executed result. Removals happen before additions, so an additional reference can explicitly reintroduce a removed resource.
+
+Use **Expand Image Saver Metadata** when you need individual settings for other nodes. Its `hashes` string includes available hashes, Civitai IDs/AIRs and weights, and connects to `additional_hashes` on the editor or metadata builder. The full `METADATA` connection remains the simplest way to preserve generation information.
 
 It reads images saved by Image Saver, A1111/Forge and ComfyUI (PNG, JPEG, WebP, AVIF). For images saved by ComfyUI's own nodes, which store no A1111 parameters, prompts and settings are read from the embedded workflow on a best-effort basis, and the `metadata` output carries no parameters to write. Editing the image in the mask editor creates a copy without the original's metadata; the node warns about that.
 

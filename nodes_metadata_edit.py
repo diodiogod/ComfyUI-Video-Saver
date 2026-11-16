@@ -7,13 +7,17 @@ Inputs follow Edit Image Saver Pipe: text fields use the [original] placeholder,
 sampler/scheduler only apply when connected.
 """
 import dataclasses
+import asyncio
 import re
 from typing import Any
 
 from .nodes import Metadata, parse_checkpoint_name_without_extension
 from .nodes_pipe import EditImageSaverPipe, apply_string_edit
-from .saver.image_metadata import edit_parameters
+from .saver.image_metadata import edit_parameters, parse_parameters, read_image_metadata
+from .saver.metadata_resources import merge_resources, metadata_choices, remove_references, resource_references, resource_version, selection_values
+from .saver.resource_refs import parse_reference, resource_from_identifier
 from .utils_civitai import get_civitai_sampler_name
+from .nodes_image_loader import metadata_path, to_saver_metadata, PromptServer
 
 EDIT_FIELDS = ("modelname", "positive", "negative", "width", "height", "seed", "steps", "cfg",
                "sampler_name", "scheduler_name", "denoise", "clip_skip")
@@ -31,23 +35,31 @@ class EditMetadata:
         for key in ("positive", "negative"):
             optional[key] = (optional[key][0], {**optional[key][1],
                 "tooltip": f"{key} prompt. '[original]' keeps it, '[original], more' appends, other text replaces it, empty removes it."})
+        optional["additional_hashes"] = ("STRING", {"default": "", "multiline": True,
+            "tooltip": "Add resources while preserving the original list. Comma-separated hashes, name:HASH:weight, "
+                       "civitai:VERSION_ID:weight or AIR:weight. Matching hashes/versions merge; an explicit weight updates it. No network requests."})
         optional["remove_settings"] = ("STRING", {"default": "", "multiline": False,
-            "tooltip": "comma-separated A1111 settings to remove, e.g. 'Civitai resources, Hashes, Model hash' or 'Version, Lora hashes'"})
+            "tooltip": "Select existing settings in the advanced checklist below. API workflows can supply a JSON array or comma-separated setting names."})
         optional["remove_resources"] = ("STRING", {"default": "", "multiline": False,
-            "tooltip": "comma-separated resources to remove from Hashes, Civitai resources, Lora/TI hashes and the hashes output: "
-                       "names (e.g. 'EasyNegative' or the Civitai name), hashes, Civitai version IDs or AIRs"})
+            "tooltip": "Select resources in the checklist below. Removes their saved attribution, not LoRA loading or prompt text. "
+                       "API workflows can supply a JSON array or comma-separated names, hashes, version IDs or AIRs."})
         return {"required": {"metadata": ("METADATA", {"tooltip": "metadata to edit"})}, "optional": optional}
 
     RETURN_TYPES = ("METADATA",)
     RETURN_NAMES = ("metadata",)
     OUTPUT_TOOLTIPS = ("the edited metadata, for Image Saver Simple or another Edit Metadata",)
-    FUNCTION = "edit"
+    FUNCTION = "execute"
     CATEGORY = "ImageSaver"
     DESCRIPTION = ("Change or remove parts of existing metadata, e.g. from Load Image with Metadata. Only what you change "
                    "is rewritten; hashes, Civitai resources and other settings stay as they are. Numbers and "
                    "sampler/scheduler only change when connected.")
 
-    def edit(self, metadata: Metadata | None, remove_settings: str = "", remove_resources: str = "",
+    def execute(self, metadata, **kwargs):
+        result = self.edit(metadata, **kwargs)
+        return {"result": result, "ui": {"metadata_editor": [{"source": metadata_choices(metadata),
+                                                              "result": metadata_choices(result[0])}]}}
+
+    def edit(self, metadata: Metadata | None, remove_settings: str = "", remove_resources: str = "", additional_hashes: str = "",
              **kwargs: Any) -> tuple[Metadata | None]:
         if metadata is None:
             print("ComfyUI-Image-Saver: Edit Metadata received no metadata, passing it through.")
@@ -99,13 +111,29 @@ class EditMetadata:
             changes["Sampler"] = get_civitai_sampler_name(sampler.replace("_gpu", ""), scheduler)
             changes["Schedule type"] = None  # newer A1111 field; the scheduler is part of Sampler now
 
-        remove = [key.strip() for key in remove_settings.split(",") if key.strip()]
-        resources = [name.strip() for name in remove_resources.split(",") if name.strip()]
+        remove = selection_values(remove_settings)
+        resources = selection_values(remove_resources)
+        if not fields and not remove and not resources and not additional_hashes.strip():
+            return (metadata,)
         final_hashes = drop_named_hashes(metadata.final_hashes, resources)
         if metadata.a111_params:
             fields["a111_params"] = edit_parameters(metadata.a111_params, fields.get("positive"), fields.get("negative"),
                                                     changes, remove, resources)
             final_hashes = drop_removed_hashes(final_hashes, metadata.a111_params, fields["a111_params"])
+            if remove or resources:
+                # Keep version-only references synchronized with the edited text, too.
+                _, _, old_settings = parse_parameters(metadata.a111_params)
+                old_records = old_settings.get("Civitai resources", [])
+                old_versions = {resource_version(item) for item in old_records if isinstance(item, dict)} if isinstance(old_records, list) else set()
+                current_refs = resource_references(fields["a111_params"])
+                current_versions = {str(record["modelVersionId"]) for entry in current_refs.split(",")
+                                    if (parsed := parse_reference(entry)) and (record := resource_from_identifier(parsed[2]))}
+                final_hashes = ",".join(entry for entry in final_hashes.split(",") if entry and not (
+                    (parsed := parse_reference(entry)) and (record := resource_from_identifier(parsed[2]))
+                    and str(record["modelVersionId"]) in old_versions - current_versions))
+        if additional_hashes.strip():
+            parameters, final_hashes = merge_resources(fields.get("a111_params", metadata.a111_params), final_hashes, additional_hashes)
+            fields["a111_params"] = parameters
         if final_hashes != metadata.final_hashes:
             fields["final_hashes"] = final_hashes
 
@@ -117,11 +145,9 @@ HASH_TOKEN = re.compile(r"\b[0-9a-fA-F]{8,16}\b")
 
 def drop_named_hashes(final_hashes: str, names: list[str]) -> str:
     """Drop hashes output entries ("name:HASH[:weight]") whose name or hash is in `names`."""
-    wanted = {name.casefold() for name in names}
-    if not wanted:
+    if not names:
         return final_hashes
-    return ",".join(entry for entry in final_hashes.split(",")
-                    if entry.strip() and not any(part.strip().casefold() in wanted for part in entry.split(":")))
+    return remove_references(final_hashes, names)
 
 
 def drop_removed_hashes(final_hashes: str, old_parameters: str, new_parameters: str) -> str:
@@ -136,3 +162,45 @@ def drop_removed_hashes(final_hashes: str, old_parameters: str, new_parameters: 
     kept = [entry for entry in final_hashes.split(",")
             if entry.strip() and not any(part.strip().lower() in gone for part in entry.split(":"))]
     return ",".join(kept)
+
+
+def edit_preview_response(payload):
+    if not isinstance(payload, dict) or not isinstance(payload.get("filename"), str) or not payload["filename"]:
+        return 400, {"error": "Select an image in Load Image with Metadata first."}
+    edits = payload.get("edits", [])
+    allowed = set(EDIT_FIELDS) | {"remove_resources", "remove_settings", "additional_hashes"}
+    if not isinstance(edits, list) or len(edits) > 32 or any(not isinstance(edit, dict) or set(edit) - allowed for edit in edits):
+        return 400, {"error": "Invalid metadata edits."}
+    text_fields = {"modelname", "positive", "negative", "sampler_name", "scheduler_name",
+                   "remove_resources", "remove_settings", "additional_hashes"}
+    for edit in edits:
+        for key, value in edit.items():
+            if (key in text_fields and not isinstance(value, str)) or (
+                    key not in text_fields and (isinstance(value, bool) or not isinstance(value, (int, float)))):
+                return 400, {"error": f"Invalid value for {key}."}
+    try:
+        path = metadata_path(payload["filename"])
+    except ValueError:
+        return 403, {"error": "invalid path"}
+    except FileNotFoundError:
+        return 404, {"error": "file not found"}
+    try:
+        metadata = to_saver_metadata(read_image_metadata(path))
+        source = metadata
+        for changes in edits:
+            source = metadata
+            metadata = EditMetadata().edit(metadata, **changes)[0]
+        warning = "" if metadata else "No generation metadata was found in this image."
+        return 200, {"source": metadata_choices(source), "result": metadata_choices(metadata), "warning": warning}
+    except (ValueError, TypeError, OSError) as error:
+        return 400, {"error": str(error)}
+
+
+if PromptServer is not None and getattr(PromptServer, "instance", None) is not None:
+    from aiohttp import web
+
+    @PromptServer.instance.routes.post("/image_saver/edit_metadata_preview")
+    async def edit_metadata_preview_route(request):
+        payload = await request.json()
+        status, body = await asyncio.to_thread(edit_preview_response, payload)
+        return web.json_response(body, status=status)

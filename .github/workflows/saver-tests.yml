@@ -1,6 +1,7 @@
 name: Saver Tests
 
 on:
+  workflow_dispatch:
   push:
     branches: [ master ]
   pull_request:
@@ -36,3 +37,12 @@ jobs:
       run: |
         cd tests
         python -m pytest
+
+  metadata-editor-frontend:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+    - run: node --test tests/metadata-editor-ui.test.cjs

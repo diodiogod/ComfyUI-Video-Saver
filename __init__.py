@@ -10,6 +10,7 @@ from .random_tag_picker import RandomTagPicker, RandomCharacterPicker, RandomArt
 from .nodes_vae import VAEForceIndividualImages
 from .nodes_image_loader import LoadImageWithMetadata
 from .nodes_metadata_edit import EditMetadata
+from .nodes_metadata_expand import ExpandImageSaverMetadata
 
 NODE_CLASS_MAPPINGS: dict[str, Any] = {
     "Checkpoint Loader with Name (Image Saver)": CheckpointLoaderWithName,
@@ -19,6 +20,7 @@ NODE_CLASS_MAPPINGS: dict[str, Any] = {
     "Image Saver Metadata": ImageSaverMetadata,
     "Load Image with Metadata (Image Saver)": LoadImageWithMetadata,
     "Edit Metadata (Image Saver)": EditMetadata,
+    "Expand Image Saver Metadata": ExpandImageSaverMetadata,
     "Make Image Saver Simple Config": MakeImageSaverSimpleConfig,
     "Make Image Saver Metadata Config": MakeImageSaverMetadataConfig,
     "Make Image Saver Pipe": MakeImageSaverPipe,

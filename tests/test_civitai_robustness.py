@@ -31,7 +31,8 @@ def test_network_error_falls_back_to_model_hash(tmp_path, monkeypatch):
     assert add_model_hash == "ABCDEF1234"
 
 
-@pytest.mark.parametrize("content", ["{}", '{"model": "not a dict", "id": 1}', "[]", "not json"])
+@pytest.mark.parametrize("content", ["{}", '{"model": "not a dict", "id": 1}', "[]", "not json",
+                                     '{"model": {}, "id": []}', '{"model": {}, "id": null}'])
 def test_unexpected_civitai_info_file_falls_back_to_model_hash(tmp_path, content):
     (tmp_path / "model.civitai.info").write_text(content)
     resources, _, add_model_hash = metadata_for_model(tmp_path)
