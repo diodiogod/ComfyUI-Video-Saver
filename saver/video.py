@@ -6,11 +6,11 @@ import json
 import math
 import os
 import re
-import shutil
-import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any, Iterable
+
+import av
 
 from .resource_refs import parse_reference, resource_identity
 
@@ -42,7 +42,7 @@ def _json_value(value: Any) -> str:
 
 
 def native_video_metadata(tags: dict[str, str]) -> dict[str, Any]:
-    """Convert our FFmpeg-ready tags to values accepted by native VIDEO.
+    """Convert our container tags to values accepted by native VIDEO.
 
     The native component encoder JSON-serializes every metadata value itself.
     ``parameters`` is deliberately omitted here because it is an A1111 text
@@ -310,45 +310,6 @@ def resources_to_prompt_json(
     return _json_value(graph)
 
 
-def escape_ffmetadata(value: str) -> str:
-    """Escape a value for FFmpeg's FFMETADATA1 format."""
-    return (
-        str(value)
-        .replace("\\", "\\\\")
-        .replace(";", "\\;")
-        .replace("#", "\\#")
-        .replace("=", "\\=")
-        .replace("\n", "\\\n")
-    )
-
-
-def write_ffmetadata(path: str | os.PathLike[str], tags: dict[str, str]) -> None:
-    with open(path, "w", encoding="utf-8", newline="\n") as metadata_file:
-        metadata_file.write(";FFMETADATA1\n")
-        for key, value in tags.items():
-            metadata_file.write(f"{escape_ffmetadata(key)}={escape_ffmetadata(value)}\n")
-
-
-def find_ffmpeg() -> str:
-    forced_path = os.environ.get("VHS_FORCE_FFMPEG_PATH") or os.environ.get("IMAGE_SAVER_FFMPEG_PATH")
-    if forced_path and os.path.isfile(forced_path):
-        return forced_path
-
-    ffmpeg = shutil.which("ffmpeg")
-    if ffmpeg:
-        return ffmpeg
-
-    try:
-        from imageio_ffmpeg import get_ffmpeg_exe
-
-        return get_ffmpeg_exe()
-    except Exception as error:
-        raise RuntimeError(
-            "Image Saver Video Metadata requires FFmpeg. Install FFmpeg or set "
-            "IMAGE_SAVER_FFMPEG_PATH to its executable."
-        ) from error
-
-
 def _output_path(source: Path, suffix: str, overwrite: bool) -> Path:
     if overwrite:
         return source
@@ -388,57 +349,38 @@ def embed_video_metadata(
         )
         temporary_file.close()
         temporary_output = Path(temporary_file.name)
-        ffmpeg_output = temporary_output
+        remux_output = temporary_output
     else:
-        ffmpeg_output = output_path
-
-    metadata_file = tempfile.NamedTemporaryFile(
-        prefix="image_saver_video_metadata_",
-        suffix=".txt",
-        mode="w",
-        encoding="utf-8",
-        newline="\n",
-        delete=False,
-    )
-    metadata_file.close()
+        remux_output = output_path
 
     try:
-        write_ffmetadata(metadata_file.name, tags)
-        command = [
-            find_ffmpeg(),
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-y",
-            "-i",
-            str(source_path),
-            "-f",
-            "ffmetadata",
-            "-i",
-            metadata_file.name,
-            "-map",
-            "0",
-            "-map_metadata",
-            "1",
-            "-c",
-            "copy",
-        ]
-        if extension == ".mp4":
-            command.extend(["-movflags", "use_metadata_tags+faststart"])
-        command.append(str(ffmpeg_output))
-        subprocess.run(command, check=True, capture_output=True, text=True)
+        options = {"movflags": "use_metadata_tags+faststart"} if extension == ".mp4" else {}
+        with av.open(str(source_path), mode="r") as source_container:
+            with av.open(str(remux_output), mode="w", options=options) as output_container:
+                output_container.metadata.update(tags)
+                streams = {}
+                for stream in source_container.streams:
+                    output_stream = output_container.add_stream_from_template(stream, opaque=True)
+                    output_stream.metadata.update(stream.metadata)
+                    output_stream.disposition = stream.disposition
+                    if stream.codec_context is not None:
+                        # The container is unchanged; retain tags such as HEVC's hvc1.
+                        output_stream.codec_context.codec_tag = stream.codec_context.codec_tag
+                    if stream.type == "video" and stream.average_rate is not None:
+                        output_stream.codec_context.framerate = stream.average_rate
+                    streams[stream.index] = output_stream
+                for packet in source_container.demux():
+                    if packet.size == 0:
+                        continue
+                    packet.stream = streams[packet.stream.index]
+                    output_container.mux(packet)
 
         if overwrite and temporary_output is not None:
             os.replace(temporary_output, source_path)
         return str(output_path)
-    except subprocess.CalledProcessError as error:
-        details = (error.stderr or error.stdout or "").strip()
-        raise RuntimeError(f"FFmpeg could not write video metadata: {details}") from error
+    except av.error.FFmpegError as error:
+        raise RuntimeError(f"Could not write video metadata: {error}") from error
     finally:
-        try:
-            os.remove(metadata_file.name)
-        except FileNotFoundError:
-            pass
         if temporary_output is not None and temporary_output.exists():
             temporary_output.unlink()
 

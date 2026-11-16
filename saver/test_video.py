@@ -1,15 +1,17 @@
 import json
-import shutil
 import subprocess
+import sys
 from copy import deepcopy
+from fractions import Fraction
+from pathlib import Path
 from types import SimpleNamespace
 
+import av
 import pytest
 
 from .video import (
     build_video_metadata,
     embed_video_metadata,
-    escape_ffmetadata,
     native_video_metadata,
     resources_to_prompt_json,
     select_vhs_video_file,
@@ -148,10 +150,6 @@ def test_build_video_metadata_preserves_civitai_contract():
     assert json.loads(tags["extraMetadata"])["civitaiResources"][0]["type"] == "checkpoint"
 
 
-def test_escape_ffmetadata():
-    assert escape_ffmetadata(r"a=b;c#d\e\nf") == r"a\=b\;c\#d\\e\\nf"
-
-
 def test_unpack_vhs_filenames():
     assert unpack_vhs_filenames((False, ["one.mp4", "two.webm"])) == (False, ["one.mp4", "two.webm"])
     assert unpack_vhs_filenames(["one.mp4"]) == (True, ["one.mp4"])
@@ -190,51 +188,96 @@ def test_native_video_metadata_avoids_double_serializing_parameters():
     assert native["civitaiResources"] == [{"modelVersionId": 123}]
 
 
-@pytest.mark.skipif(shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None, reason="FFmpeg and FFprobe are required")
-def test_embed_video_metadata_mp4(tmp_path):
-    source = tmp_path / "source.mp4"
-    subprocess.run(
-        [
-            shutil.which("ffmpeg"),
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-y",
-            "-f",
-            "lavfi",
-            "-i",
-            "color=c=black:s=16x16:d=0.1",
-            "-c:v",
-            "libx264",
-            "-pix_fmt",
-            "yuv420p",
-            str(source),
-        ],
-        check=True,
-    )
+@pytest.fixture(params=[("mp4", "libx264"), ("webm", "libvpx-vp9"), ("mp4", "libx265")],
+                ids=["h264-aac", "vp9-opus", "hevc-aac"])
+def source_video(tmp_path, request):
+    extension, video_codec = request.param
+    source = tmp_path / f"source.{extension}"
+    with av.open(str(source), "w") as container:
+        video = container.add_stream(video_codec, rate=25)
+        video.width = video.height = 16
+        video.pix_fmt = "yuv420p"
+        if video_codec == "libx265":
+            video.codec_context.codec_tag = "hvc1"
+            video.options = {"x265-params": "log-level=error:pools=none"}
+        audio_streams = []
+        for language in ("eng", "por"):
+            audio = container.add_stream("aac" if extension == "mp4" else "libopus", rate=48000)
+            audio.layout = "mono"
+            audio.metadata["language"] = language
+            audio.disposition = 1 if language == "eng" else 0
+            audio_streams.append(audio)
+        for index in range(8):
+            frame = av.VideoFrame(16, 16, "yuv420p")
+            for plane in frame.planes:
+                plane.update(bytes([index * 16]) * plane.buffer_size)
+            frame.pts = index
+            frame.time_base = Fraction(1, 25)
+            container.mux(video.encode(frame))
+        container.mux(video.encode())
+        samples = 1024 if extension == "mp4" else 960
+        for audio in audio_streams:
+            for index in range(16):
+                frame = av.AudioFrame(format="fltp" if extension == "mp4" else "flt", layout="mono", samples=samples)
+                for plane in frame.planes:
+                    plane.update(bytes(plane.buffer_size))
+                frame.sample_rate = 48000
+                frame.pts = index * samples
+                frame.time_base = Fraction(1, 48000)
+                container.mux(audio.encode(frame))
+            container.mux(audio.encode())
+    return source
 
-    output = embed_video_metadata(
-        source,
-        {
-            "parameters": "positive\nNegative prompt: negative",
-            "civitaiResources": '[{"modelVersionId":123}]',
-        },
-    )
-    probe = subprocess.run(
-        [
-            shutil.which("ffprobe"),
-            "-v",
-            "error",
-            "-show_entries",
-            "format_tags=parameters,civitaiResources",
-            "-of",
-            "json",
-            output,
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    tags = json.loads(probe.stdout)["format"]["tags"]
-    assert tags["parameters"] == "positive\nNegative prompt: negative"
-    assert json.loads(tags["civitaiResources"])[0]["modelVersionId"] == 123
+
+def stream_packets(path):
+    with av.open(str(path)) as container:
+        streams = [(stream.type, stream.codec_context.name, stream.codec_context.codec_tag,
+                    stream.metadata.get("language"), stream.disposition) for stream in container.streams]
+        packets = [[] for stream in container.streams]
+        for packet in container.demux():
+            if packet.size:
+                packets[packet.stream.index].append((
+                    bytes(packet),
+                    packet.pts * packet.time_base if packet.pts is not None else None,
+                    packet.dts * packet.time_base if packet.dts is not None else None,
+                    packet.duration * packet.time_base,
+                ))
+        return streams, packets
+
+
+@pytest.mark.parametrize("overwrite", [False, True])
+def test_embed_video_metadata_without_ffmpeg(source_video, overwrite, monkeypatch):
+    original_bytes = source_video.read_bytes()
+    original_streams = stream_packets(source_video)
+    tags = build_video_metadata(video_metadata(), {"1": {"class_type": "Original"}}, {"workflow": {"nodes": []}})
+    tags["parameters"] = '景色 café = ; # \\ "quoted"\nNegative prompt: negative\nSteps: 20'
+    monkeypatch.setenv("PATH", "")
+    monkeypatch.setitem(sys.modules, "imageio_ffmpeg", None)
+    monkeypatch.setattr(subprocess, "Popen", lambda *args, **kwargs: pytest.fail("Metadata writing launched an executable"))
+
+    output = Path(embed_video_metadata(source_video, tags, overwrite=overwrite))
+
+    assert stream_packets(output) == original_streams
+    with av.open(str(output)) as container:
+        actual = {key.lower(): value for key, value in container.metadata.items()}
+        for key, value in tags.items():
+            assert actual[key.lower()] == value
+    if overwrite:
+        assert output == source_video
+        assert list(source_video.parent.iterdir()) == [source_video]
+    else:
+        assert output == source_video.with_stem("source_civitai")
+        assert source_video.read_bytes() == original_bytes
+
+
+def test_embed_video_metadata_failure_preserves_original(source_video, monkeypatch):
+    original_bytes = source_video.read_bytes()
+
+    def fail_mux(*args, **kwargs):
+        raise av.error.InvalidDataError(1094995529, "Invalid data")
+
+    monkeypatch.setattr(av.container.OutputContainer, "mux", fail_mux)
+    with pytest.raises(RuntimeError, match="Could not write video metadata"):
+        embed_video_metadata(source_video, {"parameters": "positive"}, overwrite=True)
+    assert source_video.read_bytes() == original_bytes
+    assert list(source_video.parent.iterdir()) == [source_video]

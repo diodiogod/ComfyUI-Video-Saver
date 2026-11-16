@@ -9,7 +9,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from saver.video import build_video_metadata, embed_video_metadata, find_ffmpeg, native_video_metadata
+from saver.video import build_video_metadata, embed_video_metadata, native_video_metadata
 from saver.metadata_reader import read_video_tags, metadata_fields, read_resource_records
 from saver.resource_refs import export_resource_references, parse_reference, resource_from_identifier
 
@@ -40,16 +40,17 @@ CASES = {
 
 
 def main():
+    ffmpeg = shutil.which("ffmpeg")
     ffprobe = shutil.which("ffprobe")
-    if not ffprobe:
-        raise RuntimeError("FFprobe is required for compatibility tests")
+    if not ffmpeg or not ffprobe:
+        raise RuntimeError("FFmpeg and FFprobe are required for compatibility tests")
     fixtures = []
     with tempfile.TemporaryDirectory(prefix="video_saver_civitai_") as temporary:
         directory = Path(temporary)
         for extension, video_codec, audio_codec in [("mp4", "libx264", "aac"), ("webm", "libvpx-vp9", "libopus")]:
             source = directory / f"source.{extension}"
             subprocess.run([
-                find_ffmpeg(), "-loglevel", "error", "-y", "-f", "lavfi", "-i", "color=c=black:s=16x16:d=0.1",
+                ffmpeg, "-loglevel", "error", "-y", "-f", "lavfi", "-i", "color=c=black:s=16x16:d=0.1",
                 "-f", "lavfi", "-i", "sine=frequency=440:duration=0.1",
                 "-c:v", video_codec, "-c:a", audio_codec, "-shortest", str(source),
             ], check=True, capture_output=True)

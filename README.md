@@ -34,6 +34,8 @@ For VideoHelperSuite, keep `save_metadata` enabled on `Video Combine`, then conn
 
 Both paths write a compact ComfyUI compatibility graph to `prompt`, built from the explicit Image Saver Metadata inputs. Civitai reads this graph to recover positive/negative prompts, seed, steps, sampler, scheduler, guidance, dimensions, and resolved resource versions. This graph describes the saved metadata; the original UI workflow remains the workflow to load in ComfyUI.
 
+Both paths add metadata using PyAV, already included with ComfyUI, without re-encoding video or audio. This metadata step requires no separate FFmpeg executable or `imageio-ffmpeg` installation. VideoHelperSuite still needs its own encoding dependencies.
+
 Keep `download_civitai_data` enabled on Image Saver Metadata to include resolved model-version IDs for native resource attribution. Existing AIR identifiers and version-ID-only records are supported. When lookup data is unavailable or disabled, recognizable model and LoRA filenames are retained, but native resource linking is not guaranteed from filenames alone.
 
 With workflow embedding enabled, the original UI workflow stays in `workflow` and the unmodified execution graph is retained in `prompt_original`. With it disabled, the video still contains the small compatibility graph, but not the original workflow/execution graph. A1111 `parameters`, hashes, `civitaiResources`, and `extraMetadata` are retained for other readers.

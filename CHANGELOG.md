@@ -1,3 +1,7 @@
+# v1.28.1
+
+- Use ComfyUI's existing PyAV installation to write native VIDEO and VHS metadata without a separate FFmpeg executable or `imageio-ffmpeg`. Video and audio are copied without re-encoding, with Civitai-compatible metadata preserved (#3).
+
 # v1.28.0
 
 - Include upstream Image Saver updates through v1.27.1, including v1.27.0's AVIF support. This fork maintains its own release versions.
