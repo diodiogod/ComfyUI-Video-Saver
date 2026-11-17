@@ -7,6 +7,28 @@ const LOADER = "Load Image with Metadata (Image Saver)";
 const FIELDS = ["modelname", "positive", "negative", "width", "height", "seed", "steps", "cfg",
     "sampler_name", "scheduler_name", "denoise", "clip_skip", "additional_hashes", "remove_resources", "remove_settings"];
 
+// Older prototype workflows stored additions as the fourth widget value. Move that value to a
+// STRING node so changing the default to a socket cannot shift the two removal selections.
+export function migrateAdditionalHashes(graph) {
+    for (const node of [...(graph.nodes ?? [])]) {
+        const input = node.inputs?.find(input => input.name === "additional_hashes");
+        if (node.type !== EDITOR || !input?.widget || node.widgets_values?.length !== 6) continue;
+        const [value] = node.widgets_values.splice(3, 1);
+        delete input.widget;
+        if (node.widgets_values_named) delete node.widgets_values_named.additional_hashes;
+        if (!value || input.link != null) continue;
+        const id = Math.max(graph.last_node_id ?? 0, ...graph.nodes.map(node => node.id)) + 1;
+        const link = Math.max(graph.last_link_id ?? 0, ...(graph.links ?? []).map(link => link[0])) + 1;
+        graph.last_node_id = id;
+        graph.last_link_id = link;
+        input.link = link;
+        (graph.links ??= []).push([link, id, 0, node.id, node.inputs.indexOf(input), "STRING"]);
+        graph.nodes.push({ id, type: "PrimitiveStringMultiline", title: "Additional resources", pos: [node.pos[0], node.pos[1] - 210],
+            size: [400, 160], flags: {}, order: 0, mode: 0, inputs: [],
+            outputs: [{ name: "STRING", type: "STRING", links: [link] }], properties: {}, widgets_values: [value] });
+    }
+}
+
 function sourceNode(node, inputName) {
     const input = node.inputs?.find(input => input.name === inputName);
     const link = input?.link == null ? null : node.graph?.links?.[input.link];
@@ -33,26 +55,30 @@ function literal(node, name, seen = new Set()) {
     if (/^Primitive/.test(upstream.comfyClass ?? upstream.type) || /Selector.*Image Saver/.test(upstream.comfyClass ?? upstream.type)) {
         return upstream.widgets?.[0]?.value;
     }
-    throw new Error("Run the workflow to preview values from connected processing nodes.");
+    throw new PreviewRequiresExecution("Run the workflow to preview values from connected processing nodes.");
 }
 
+class PreviewRequiresExecution extends Error {}
+
 export function previewRequest(node) {
-    const edits = [];
+    const editors = [];
     const seen = new Set();
     for (let current = node; current; current = sourceNode(current, current.type === "Reroute" ? current.inputs?.[0]?.name : "metadata")) {
         if (seen.has(current.id) || seen.size >= 32) throw new Error("The metadata connection contains a cycle or too many editors.");
         seen.add(current.id);
         const type = current.comfyClass ?? current.type;
-        if (type === LOADER) return { filename: literal(current, "image"), edits: edits.reverse() };
-        if (type === EDITOR) {
+        if (type === LOADER) return { filename: literal(current, "image"), edits: editors.reverse().map(editor => {
             const changes = {};
             for (const field of FIELDS) {
-                const value = literal(current, field);
+                const value = literal(editor, field);
                 if (value !== undefined) changes[field] = value;
             }
-            edits.push(changes);
+            return changes;
+        }) };
+        if (type === EDITOR) {
+            editors.push(current);
         } else if (type !== "Reroute") {
-            throw new Error("Run the workflow to inspect metadata from this source.");
+            throw new PreviewRequiresExecution("Run the workflow to inspect metadata from this source.");
         }
     }
     throw new Error("Connect metadata from Load Image with Metadata to choose resources and settings.");
@@ -133,6 +159,10 @@ function createEditor(node) {
 
     function renderChoices(container, choices, name) {
         container.replaceChildren();
+        if (!choices) {
+            container.append(el("small", "No metadata to inspect."));
+            return;
+        }
         const selected = selectionValues(widgets[name].value);
         const connected = node.inputs?.some(input => input.name === name && input.link != null);
         for (const choice of choices ?? []) {
@@ -172,8 +202,12 @@ function createEditor(node) {
         renderChoices(resourceList, data?.source?.resources, "remove_resources");
         renderChoices(settingList, data?.source?.settings, "remove_settings");
         const count = data?.result?.resources?.length ?? 0;
-        resourceTitle.textContent = `Remove resources · ${count} in result`;
+        resourceTitle.textContent = data?.result ? `Remove resources · ${count} in result` : "Remove resources";
         resultBody.replaceChildren();
+        tableButton.disabled = !data?.result || mode === "table";
+        textButton.disabled = !data?.result || mode === "text";
+        copyButton.disabled = !data?.result?.parameters;
+        copyButton.textContent = "Copy";
         if (!data?.result) return;
         if (mode === "text") {
             const area = el("textarea");
@@ -189,8 +223,6 @@ function createEditor(node) {
             }
             resultBody.append(table);
         }
-        tableButton.disabled = mode === "table";
-        textButton.disabled = mode === "text";
     }
     tableButton.addEventListener("click", () => { mode = "table"; render(); });
     textButton.addEventListener("click", () => { mode = "text"; render(); });
@@ -201,6 +233,7 @@ function createEditor(node) {
     });
 
     async function refresh() {
+        if (disposed) return;
         let payload;
         try { payload = previewRequest(node); }
         catch (error) {
@@ -210,8 +243,11 @@ function createEditor(node) {
             signature = state;
             request++;
             controller?.abort();
-            if (!lastExecution) data = null;
-            message.textContent = lastExecution ? `${error.message} Showing last execution.` : error.message;
+            // A disconnected/broken metadata path invalidates the old result. Only a connected
+            // source that needs execution may show the explicitly labelled historical result.
+            if (!(error instanceof PreviewRequiresExecution)) lastExecution = null;
+            data = lastExecution ?? null;
+            message.textContent = data ? `${error.message} Showing last execution.` : error.message;
             render();
             return;
         }
@@ -229,7 +265,7 @@ function createEditor(node) {
             const json = await response.json();
             if (disposed || id !== request) return;
             data = response.ok ? json : null;
-            message.textContent = json.error ?? json.warning ?? "Live preview — existing information stays unless changed.";
+            message.textContent = json.error || json.warning || "Live preview — existing information stays unless changed.";
             render();
         } catch (error) {
             if (disposed || id !== request || error.name === "AbortError") return;
@@ -242,6 +278,15 @@ function createEditor(node) {
     node.onExecuted = function (output) {
         const result = onExecuted?.apply(this, arguments);
         if (output?.metadata_editor?.[0]) {
+            try { previewRequest(node); }
+            catch (error) {
+                if (!(error instanceof PreviewRequiresExecution)) {
+                    // A run queued before disconnection can finish afterwards.
+                    signature = undefined;
+                    refresh();
+                    return result;
+                }
+            }
             request++;
             controller?.abort();
             data = lastExecution = output.metadata_editor[0];
@@ -256,6 +301,7 @@ function createEditor(node) {
 
 app.registerExtension({
     name: "ImageSaver.MetadataEditor",
+    beforeConfigureGraph(graphData) { migrateAdditionalHashes(graphData); },
     beforeRegisterNodeDef(nodeType, nodeData) {
         if (nodeData.name !== EDITOR) return;
         if (!document.getElementById("image-saver-editor-style")) {

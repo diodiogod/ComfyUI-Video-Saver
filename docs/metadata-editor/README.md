@@ -4,10 +4,12 @@ This image-only collaboration branch starts at alexopus/ComfyUI-Image-Saver `loa
 
 ## Changes to review
 
-- **Add resources:** `additional_hashes` merges hashes, Civitai version IDs, AIRs and optional weights. Original references remain; matching identities merge; an explicitly supplied weight updates the resource. The editor does not hash model files or contact Civitai.
+- **Add resources:** connect a STRING or the expander's resource references to `additional_hashes`, matching Image Saver's connection input. It merges hashes, Civitai version IDs, AIRs and optional weights. Original references remain; matching identities merge; an explicitly supplied weight updates the resource. The editor does not hash model files or contact Civitai.
 - **Select removals:** choose actual source resources by readable name/version and see their identifiers and weights. Settings use a separate advanced checklist with current values. The underlying STRING inputs still accept comma-separated selectors or JSON arrays for API workflows and connected inputs.
 - **Preview the result:** the same Python editing function drives both the live preview and workflow execution. File-loader sources, editor chains, reroutes and literal values can be inspected before executing. Values computed by other nodes require execution; the UI identifies that limitation and can show the last executed result.
+- **Disconnect and reconnect:** disconnecting metadata, including earlier in an editor chain, clears the preview and cached result. Reconnecting a source that supports live preview restores it without executing. Late results cannot refill a disconnected editor.
 - **Expand metadata:** Expand Image Saver Metadata exposes individual values and a complete resource-reference string. That string can be connected to `additional_hashes` on the editor or existing metadata builder.
+- **Stable image preview:** Table and Text share the same metadata panel height, keeping the image in place when switching views. Longer metadata scrolls within the panel.
 
 Removal is applied before addition. A reference can therefore be explicitly reintroduced after removal. Hashes and version IDs cannot be correlated offline unless they already share a known identity; the editor never guesses a correspondence.
 
@@ -30,7 +32,7 @@ The following are captures of the running ComfyUI prototype, not mockups.
 
 ## Validation
 
-The Python suites cover preserving unedited text, adding/removing references, explicit weight updates, deduplication, complete loader/expander exports, and PNG/JPEG/WebP/AVIF save/reload. JavaScript checks cover editor-chain order, cycles, computed values, and serialized selections.
+The Python suites cover preserving unedited text, adding/removing references, explicit weight updates, deduplication, complete loader/expander exports, and PNG/JPEG/WebP/AVIF save/reload. JavaScript checks cover editor-chain order, cycles, computed values, serialized selections, disconnect/reconnect recovery, late results, and stable Table/Text layout.
 
 Manual verification in a separate CPU-only ComfyUI instance covered selecting a resource and setting, adding another resource, executing the workflow, inspecting the saved file, copying the result, and restoring the selections after saving/reloading the workflow.
 

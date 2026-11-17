@@ -35,8 +35,9 @@ class EditMetadata:
         for key in ("positive", "negative"):
             optional[key] = (optional[key][0], {**optional[key][1],
                 "tooltip": f"{key} prompt. '[original]' keeps it, '[original], more' appends, other text replaces it, empty removes it."})
-        optional["additional_hashes"] = ("STRING", {"default": "", "multiline": True,
-            "tooltip": "Add resources while preserving the original list. Comma-separated hashes, name:HASH:weight, "
+        optional["additional_hashes"] = ("STRING", {"default": "", "multiline": True, "forceInput": True,
+            "tooltip": "Connect resource references from Expand Image Saver Metadata or a STRING node. "
+                       "Add resources while preserving the original list. Comma-separated hashes, name:HASH:weight, "
                        "civitai:VERSION_ID:weight or AIR:weight. Matching hashes/versions merge; an explicit weight updates it. No network requests."})
         optional["remove_settings"] = ("STRING", {"default": "", "multiline": False,
             "tooltip": "Select existing settings in the advanced checklist below. API workflows can supply a JSON array or comma-separated setting names."})

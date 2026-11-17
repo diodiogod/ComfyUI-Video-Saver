@@ -1,8 +1,8 @@
 {
   "id": "bb9a8847-eb2c-470a-8679-85860a5e8214",
   "revision": 0,
-  "last_node_id": 5,
-  "last_link_id": 5,
+  "last_node_id": 6,
+  "last_link_id": 6,
   "nodes": [
     {
       "id": 1,
@@ -205,10 +205,7 @@
           "name": "additional_hashes",
           "shape": 7,
           "type": "STRING",
-          "widget": {
-            "name": "additional_hashes"
-          },
-          "link": null
+          "link": 6
         },
         {
           "localized_name": "remove_settings",
@@ -249,7 +246,6 @@
         "[original]",
         "[original], finer detail",
         "[original]",
-        "urn:air:sdxl:lora:civitai:12@103:0.8",
         "[\"Version\"]",
         "[\"civitai:102\"]"
       ],
@@ -257,7 +253,6 @@
         "modelname": "[original]",
         "positive": "[original], finer detail",
         "negative": "[original]",
-        "additional_hashes": "urn:air:sdxl:lora:civitai:12@103:0.8",
         "remove_settings": "[\"Version\"]",
         "remove_resources": "[\"civitai:102\"]"
       }
@@ -598,6 +593,36 @@
       },
       "widgets_values": [],
       "widgets_values_named": {}
+    },
+    {
+      "id": 6,
+      "type": "PrimitiveStringMultiline",
+      "title": "Additional resources",
+      "pos": [
+        570,
+        -130
+      ],
+      "size": [
+        400,
+        160
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            6
+          ]
+        }
+      ],
+      "properties": {},
+      "widgets_values": [
+        "urn:air:sdxl:lora:civitai:12@103:0.8"
+      ]
     }
   ],
   "links": [
@@ -639,6 +664,14 @@
       12,
       5,
       0,
+      "STRING"
+    ],
+    [
+      6,
+      6,
+      0,
+      2,
+      13,
       "STRING"
     ]
   ],
