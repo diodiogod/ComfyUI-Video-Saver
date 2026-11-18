@@ -14,9 +14,11 @@ import comfy
 import folder_paths
 from image_saver_under_test.nodes import ImageSaver, Metadata
 from image_saver_under_test.nodes import ImageSaverMetadata
+from image_saver_under_test.nodes_metadata_edit import EditMetadata, edit_preview_response
 from image_saver_under_test import utils_civitai
-from image_saver_under_test.saver.metadata_reader import MissingGenerationMetadata, read_image_tags
+from image_saver_under_test.saver.metadata_reader import MissingGenerationMetadata, read_image_tags, read_video_tags, read_resource_records
 from image_saver_under_test.saver.saver import save_image
+from image_saver_under_test.saver.video import build_video_metadata, embed_video_metadata
 
 
 PARAMETERS = ('ABCD original\nNegative prompt: blurry\nSteps: 24, Sampler: DPM++ 2M Karras, '
@@ -99,6 +101,45 @@ def test_file_picker_uses_comfyui_path_resolver(reader_module, source_video, mon
     result = reader_module.ImageSaverReadVideoMetadata.execute(file="source.mp4").result
     assert requested == ["source.mp4"]
     assert result[0].source_metadata_tags["parameters"] == PARAMETERS
+
+
+def test_edit_video_preview_and_remux_update_all_resource_tags(reader_module, source_video, monkeypatch):
+    air = "urn:air:sdxl:lora:civitai:12@102"
+    original_prompt = {"1": {"class_type": "LoraLoaderModelOnly",
+                             "inputs": {"lora_name": air, "strength_model": 0.65}}}
+    original_workflow = {"nodes": [{"id": 1, "type": "OriginalWorkflow"}]}
+    source = embed_video_metadata(source_video, {
+        "parameters": PARAMETERS,
+        "prompt": json.dumps(original_prompt),
+        "workflow": json.dumps(original_workflow),
+        "extraMetadata": json.dumps({"civitaiResources": [{"modelVersionId": 102, "air": air, "weight": 0.65}],
+                                     "note": "keep me"}),
+    })
+    root = source_video.parent
+    monkeypatch.setattr(folder_paths, "get_input_directory", lambda: str(root), raising=False)
+    monkeypatch.setattr(folder_paths, "get_annotated_filepath", lambda file: str(root / file), raising=False)
+    original = reader_module.ImageSaverReadVideoMetadata.execute(file=os.path.basename(source)).result[0]
+    assert EditMetadata().edit(original)[0] is original
+    changes = {"positive": "Edited video", "seed": 99, "remove_resources": '["civitai:102"]',
+               "additional_hashes": "urn:air:sdxl:lora:civitai:13@103:0.8"}
+    result = EditMetadata().execute(original, **changes)
+    status, preview = edit_preview_response({"filename": os.path.basename(source), "edits": [changes]})
+    assert status == 200
+    assert preview == {**result["ui"]["metadata_editor"][0], "warning": ""}
+    edited = result["result"][0]
+    processing_workflow = {"nodes": [{"id": 99, "type": "Resize"}]}
+    output = embed_video_metadata(source, build_video_metadata(edited, {}, {"workflow": processing_workflow}))
+    tags, width, height = read_video_tags(output)
+    reloaded = reader_module._metadata_from_tags(tags, width, height)
+    assert reloaded.positive == "Edited video" and reloaded.seed == 99
+    assert "@102" not in tags["prompt"]
+    assert [(r["modelVersionId"], r["weight"]) for r in read_resource_records(tags)] == [(103, 0.8)]
+    assert json.loads(tags["civitaiResources"]) == json.loads(tags["extraMetadata"])["civitaiResources"]
+    assert json.loads(tags["extraMetadata"])["note"] == "keep me"
+    assert json.loads(tags["prompt_original"]) == original_prompt
+    assert json.loads(tags["workflow_original"]) == original_workflow
+    assert json.loads(tags["workflow"]) == processing_workflow
+    assert original.a111_params == PARAMETERS
 
 
 def test_reader_cache_invalidates_when_source_is_replaced(reader_module, source_video, monkeypatch):

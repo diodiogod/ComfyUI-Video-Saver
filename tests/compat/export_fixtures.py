@@ -9,7 +9,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from saver.video import build_video_metadata, embed_video_metadata, native_video_metadata
+from saver.video import build_video_metadata, embed_video_metadata, native_video_metadata, update_edited_generation_tags
+from saver.image_metadata import edit_parameters
 from saver.metadata_reader import read_video_tags, metadata_fields, read_resource_records
 from saver.resource_refs import export_resource_references, parse_reference, resource_from_identifier
 
@@ -84,6 +85,24 @@ def main():
                 fixtures.append({"case": name, "stage": "restored", "container": extension, "probe": json.loads(processed_probe.stdout),
                                  "bytes": base64.b64encode(Path(processed_output).read_bytes()).decode("ascii")})
                 if name == "air":
+                    edited_parameters = edit_parameters(
+                        restored.a111_params, positive="Edited video prompt",
+                        settings={"Seed": "88", "Civitai resources": json.dumps([
+                            resources[0],
+                            {"modelVersionId": 107, "air": "urn:air:sdxl:lora:civitai:17@107", "weight": 0.6},
+                        ])})
+                    edited = SimpleNamespace(**(vars(restored) | dict(
+                        positive="Edited video prompt", seed=88, a111_params=edited_parameters)))
+                    edited.source_metadata_tags = update_edited_generation_tags(
+                        restored, edited, restored.a111_params, [], ["civitai:102"])
+                    edited_tags = build_video_metadata(edited, {}, {"workflow": WORKFLOW})
+                    edited_output = embed_video_metadata(source, edited_tags, suffix="_edited")
+                    edited_probe = subprocess.run([ffprobe, "-v", "error", "-show_entries",
+                        "format_tags:stream=codec_type,codec_name", "-of", "json", edited_output],
+                        check=True, capture_output=True, text=True, encoding="utf-8")
+                    fixtures.append({"case": name, "stage": "edited", "container": extension,
+                                     "probe": json.loads(edited_probe.stdout),
+                                     "bytes": base64.b64encode(Path(edited_output).read_bytes()).decode("ascii")})
                     references = export_resource_references(read_resource_records(recovered), restored.final_hashes)
                     references += ",urn:air:sdxl:lora:civitai:17@107:0.6"
                     carried = []

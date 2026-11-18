@@ -120,7 +120,10 @@ async def main():
         original = maker.get_metadata(positive="Original prompt", negative="old negative", seed_value=42,
             additional_hashes="urn:air:sdxl:checkpoint:civitai:11@101,urn:air:sdxl:lora:civitai:12@102:0.65",
             download_civitai_data=False)[0]
-        source = video_helpers.embed_video_metadata(temp / "plain.mp4", video_helpers.build_video_metadata(original, {}, {"workflow": {"nodes": []}}))
+        original_prompt = {"1": {"class_type": "LoraLoaderModelOnly",
+                                 "inputs": {"lora_name": "urn:air:sdxl:lora:civitai:12@102", "strength_model": 0.65}}}
+        source = video_helpers.embed_video_metadata(
+            temp / "plain.mp4", video_helpers.build_video_metadata(original, original_prompt, {"workflow": {"nodes": []}}))
         loaded = InputImpl.VideoFromFile(source)
         recovered = reader.execute(video=loaded).result[0]
         references = expander.execute(recovered).result[12] + ",ExtraLoRA:FEEDBEEF12:0.8"
@@ -154,8 +157,27 @@ async def main():
             assert records[102]["weight"] == 0.65
             assert records[103]["weight"] == 0.8
             assert set(entries) == {"civitai:101", "civitai:102", "civitai:103"}
+
+        editor = nodes.NODE_CLASS_MAPPINGS["Edit Metadata (Image Saver)"]()
+        edited = editor.execute(recovered, positive="Edited in place", negative="", seed=88,
+                                remove_resources='["civitai:102"]',
+                                additional_hashes="urn:air:sdxl:lora:civitai:13@103:0.8")["result"][0]
+        vhs = nodes.NODE_CLASS_MAPPINGS["Image Saver Video Metadata"]().save_video_metadata(
+            (True, [source]), metadata=edited, filename_suffix="_edited", prompt=processing, extra_pnginfo=workflow)
+        native = nodes.NODE_CLASS_MAPPINGS["Image Saver Save Video"]().save_video(
+            loaded, filename_prefix="edited", format="mp4", codec="h264", metadata=edited,
+            prompt=processing, extra_pnginfo=workflow)
+        for output in (vhs["result"][0][1][0], str(temp / native["ui"]["images"][0]["filename"])):
+            tags, width, height = module.read_video_tags(output)
+            metadata = module._metadata_from_tags(tags, width, height)
+            assert (metadata.positive, metadata.negative, metadata.seed) == ("Edited in place", "", 88)
+            records = {item["modelVersionId"]: item for item in module.read_resource_records(tags)}
+            assert set(records) == {101, 103} and records[103]["weight"] == 0.8
+            assert "@102" not in tags["prompt"]
+            assert json.loads(tags["prompt_original"]) == original_prompt
         print(json.dumps({"comfy_root": str(COMFY_ROOT), "node_info_checked": 3, "execution": results,
-                          "resource_export_append_and_resave": {"native": True, "vhs": True, "resource_ids": [101, 102, 103]}}))
+                          "resource_export_append_and_resave": {"native": True, "vhs": True, "resource_ids": [101, 102, 103]},
+                          "edited_metadata_resave": {"native": True, "vhs": True, "resource_ids": [101, 103]}}))
 
 
 if __name__ == "__main__":

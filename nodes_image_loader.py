@@ -15,6 +15,7 @@ from nodes import LoadImage
 
 from .nodes import Metadata
 from .saver.image_metadata import ImageMetadata, display_rows, read_image_metadata
+from .saver.metadata_resources import references_from_settings
 from .utils_civitai import CIVITAI_SAMPLER_MAP
 
 try:
@@ -54,22 +55,8 @@ def _number(value: Any, kind: type, default):
 
 def saver_hashes(modelname: str, settings: dict[str, Any]) -> str:
     """The "Model hash" and "Hashes" entries as a comma-separated list for additional_hashes ("name:HASH").
-    Resources only listed under "Civitai resources" have no hash and are not included."""
-    entries: list[str] = []
-    seen: set[str] = set()
-
-    def add(name: str, value: Any):
-        if isinstance(value, str) and value and value.lower() not in seen:
-            seen.add(value.lower())
-            entries.append(f"{name}:{value}" if name else value)
-
-    add(modelname, settings.get("Model hash"))
-    hashes = settings.get("Hashes")
-    if isinstance(hashes, dict):
-        for key, value in hashes.items():
-            name = modelname if key == "model" else str(key).split(":", 1)[-1]
-            add(name, value)
-    return ",".join(entries)
+    Includes Civitai version IDs/AIRs and saved weights as reusable references."""
+    return references_from_settings(settings)
 
 
 def to_saver_metadata(metadata: ImageMetadata) -> Metadata | None:
@@ -165,17 +152,24 @@ def _allowed_roots() -> list[str]:
     return roots
 
 
+def metadata_path(filename: str) -> str:
+    path = os.path.realpath(folder_paths.get_annotated_filepath(filename))
+    if not any(os.path.commonpath([root, path]) == root for root in _allowed_roots() if os.path.splitdrive(root)[0] == os.path.splitdrive(path)[0]):
+        raise ValueError("invalid path")
+    if not os.path.isfile(path):
+        raise FileNotFoundError("file not found")
+    return path
+
+
 def metadata_response(filename: str) -> tuple[int, dict[str, Any]]:
     """Response for the frontend's live preview: (HTTP status, JSON body)."""
     if not filename:
         return 400, {"error": "missing filename"}
     try:
-        path = os.path.realpath(folder_paths.get_annotated_filepath(filename))
+        path = metadata_path(filename)
     except ValueError:
         return 403, {"error": "invalid path"}
-    if not any(os.path.commonpath([root, path]) == root for root in _allowed_roots() if os.path.splitdrive(root)[0] == os.path.splitdrive(path)[0]):
-        return 403, {"error": "invalid path"}
-    if not os.path.isfile(path):
+    except FileNotFoundError:
         return 404, {"error": "file not found"}
     try:
         metadata = read_image_metadata(path)

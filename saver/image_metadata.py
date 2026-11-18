@@ -16,6 +16,7 @@ from typing import Any, Iterable
 import piexif
 import piexif.helper
 from PIL import Image
+from .resource_refs import parse_reference, resource_from_identifier
 
 # Tags as written by Image Saver and ComfyUI. EXIF strings carry them as "<tag>:<value>".
 KNOWN_TAGS = ("parameters", "prompt", "workflow")
@@ -130,6 +131,11 @@ def split_parameters(parameters: str) -> tuple[str, str]:
     settings_start = text.rfind("\nSteps: ")
     if settings_start == -1 and text.startswith("Steps: "):
         settings_start = 0
+    if settings_start == -1:
+        # Edit Metadata can remove Steps; the remaining settings still need to be readable.
+        match = re.search(r"(?:^|\n)(?:Sampler|CFG scale|Seed|Size|Model hash|Model|Hashes|Civitai resources|Version):\s", text)
+        if match:
+            settings_start = match.start()
     if settings_start >= 0:
         return text[:settings_start], text[settings_start:].strip()
     return text, ""
@@ -172,8 +178,22 @@ def prune_resources(key: str, raw: str, names: set[str]) -> str | None:
         kept = {k: v for k, v in value.items() if not _matches(names, k, str(k).split(":", 1)[-1], v)}
         return raw if len(kept) == len(value) else (_dump_like(kept, raw) if kept else None)
     if lowered == "civitai resources" and isinstance(value, list):
+        def version_ref(resource):
+            air = resource.get("air")
+            record = resource_from_identifier(air) if isinstance(air, str) else None
+            return f"civitai:{resource.get('modelVersionId') or (record or {}).get('modelVersionId')}"
+
         kept = [r for r in value if not (isinstance(r, dict) and _matches(
-            names, r.get("modelName"), r.get("modelVersionName"), r.get("modelVersionId"), r.get("air")))]
+            names, r.get("modelName"), r.get("modelVersionName"), r.get("modelVersionId"),
+            version_ref(r), r.get("air")))]
+        return raw if len(kept) == len(value) else (_dump_like(kept, raw) if kept else None)
+    if lowered == "resource references" and isinstance(value, list):
+        kept = []
+        for entry in value:
+            parsed = parse_reference(entry) if isinstance(entry, str) else None
+            if parsed and _matches(names, parsed[0], parsed[2], (parsed[0] or "").split(":", 1)[-1]):
+                continue
+            kept.append(entry)
         return raw if len(kept) == len(value) else (_dump_like(kept, raw) if kept else None)
     if lowered.endswith(" hashes") and isinstance(value, str):
         # A1111 "Lora hashes"/"TI hashes": "name: hash, name2: hash2"

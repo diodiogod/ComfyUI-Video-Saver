@@ -1,0 +1,690 @@
+{
+  "id": "bb9a8847-eb2c-470a-8679-85860a5e8214",
+  "revision": 0,
+  "last_node_id": 6,
+  "last_link_id": 6,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "Load Image with Metadata (Image Saver)",
+      "pos": [
+        50,
+        80
+      ],
+      "size": [
+        460,
+        960
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "image",
+          "name": "image",
+          "type": "COMBO",
+          "widget": {
+            "name": "image"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "upload",
+          "name": "upload",
+          "type": "IMAGEUPLOAD",
+          "widget": {
+            "name": "upload"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "image",
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            3
+          ]
+        },
+        {
+          "localized_name": "mask",
+          "name": "mask",
+          "type": "MASK",
+          "links": null
+        },
+        {
+          "localized_name": "metadata",
+          "name": "metadata",
+          "type": "METADATA",
+          "links": [
+            1
+          ]
+        },
+        {
+          "localized_name": "positive",
+          "name": "positive",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "localized_name": "negative",
+          "name": "negative",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Load Image with Metadata (Image Saver)"
+      },
+      "widgets_values": [
+        "metadata-example.png",
+        "image"
+      ],
+      "widgets_values_named": {
+        "image": "metadata-example.png",
+        "upload": "image"
+      }
+    },
+    {
+      "id": 2,
+      "type": "Edit Metadata (Image Saver)",
+      "pos": [
+        570,
+        80
+      ],
+      "size": [
+        500,
+        1000
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "metadata",
+          "name": "metadata",
+          "type": "METADATA",
+          "link": 1
+        },
+        {
+          "localized_name": "width",
+          "name": "width",
+          "shape": 7,
+          "type": "INT",
+          "link": null
+        },
+        {
+          "localized_name": "height",
+          "name": "height",
+          "shape": 7,
+          "type": "INT",
+          "link": null
+        },
+        {
+          "localized_name": "seed",
+          "name": "seed",
+          "shape": 7,
+          "type": "INT",
+          "link": null
+        },
+        {
+          "localized_name": "steps",
+          "name": "steps",
+          "shape": 7,
+          "type": "INT",
+          "link": null
+        },
+        {
+          "localized_name": "cfg",
+          "name": "cfg",
+          "shape": 7,
+          "type": "FLOAT",
+          "link": null
+        },
+        {
+          "localized_name": "sampler_name",
+          "name": "sampler_name",
+          "shape": 7,
+          "type": "COMBO",
+          "link": null
+        },
+        {
+          "localized_name": "scheduler_name",
+          "name": "scheduler_name",
+          "shape": 7,
+          "type": "COMBO",
+          "link": null
+        },
+        {
+          "localized_name": "denoise",
+          "name": "denoise",
+          "shape": 7,
+          "type": "FLOAT",
+          "link": null
+        },
+        {
+          "localized_name": "clip_skip",
+          "name": "clip_skip",
+          "shape": 7,
+          "type": "INT",
+          "link": null
+        },
+        {
+          "localized_name": "modelname",
+          "name": "modelname",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "modelname"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "positive",
+          "name": "positive",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "positive"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "negative",
+          "name": "negative",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "negative"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "additional_hashes",
+          "name": "additional_hashes",
+          "shape": 7,
+          "type": "STRING",
+          "link": 6
+        },
+        {
+          "localized_name": "remove_settings",
+          "name": "remove_settings",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "remove_settings"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "remove_resources",
+          "name": "remove_resources",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "remove_resources"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "metadata",
+          "name": "metadata",
+          "type": "METADATA",
+          "links": [
+            2,
+            4
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Edit Metadata (Image Saver)"
+      },
+      "widgets_values": [
+        "[original]",
+        "[original], finer detail",
+        "[original]",
+        "[\"Version\"]",
+        "[\"civitai:102\"]"
+      ],
+      "widgets_values_named": {
+        "modelname": "[original]",
+        "positive": "[original], finer detail",
+        "negative": "[original]",
+        "remove_settings": "[\"Version\"]",
+        "remove_resources": "[\"civitai:102\"]"
+      }
+    },
+    {
+      "id": 3,
+      "type": "Image Saver Simple",
+      "pos": [
+        1120,
+        80
+      ],
+      "size": [
+        350,
+        554
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "images",
+          "name": "images",
+          "type": "IMAGE",
+          "link": 3
+        },
+        {
+          "localized_name": "metadata",
+          "name": "metadata",
+          "shape": 7,
+          "type": "METADATA",
+          "link": 2
+        },
+        {
+          "localized_name": "filename",
+          "name": "filename",
+          "type": "STRING",
+          "widget": {
+            "name": "filename"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "path",
+          "name": "path",
+          "type": "STRING",
+          "widget": {
+            "name": "path"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "extension",
+          "name": "extension",
+          "type": "COMBO",
+          "widget": {
+            "name": "extension"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "lossless_webp",
+          "name": "lossless_webp",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "lossless_webp"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "quality_jpeg_or_webp",
+          "name": "quality_jpeg_or_webp",
+          "type": "INT",
+          "widget": {
+            "name": "quality_jpeg_or_webp"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "optimize_png",
+          "name": "optimize_png",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "optimize_png"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "embed_workflow",
+          "name": "embed_workflow",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "embed_workflow"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "save_workflow_as_json",
+          "name": "save_workflow_as_json",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "save_workflow_as_json"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "counter",
+          "name": "counter",
+          "shape": 7,
+          "type": "INT",
+          "widget": {
+            "name": "counter"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "time_format",
+          "name": "time_format",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "time_format"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "label",
+          "name": "label",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "label"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "show_preview",
+          "name": "show_preview",
+          "shape": 7,
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "show_preview"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "hashes",
+          "name": "hashes",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "localized_name": "a1111_params",
+          "name": "a1111_params",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Image Saver Simple"
+      },
+      "widgets_values": [
+        "metadata-review",
+        "",
+        "png",
+        true,
+        100,
+        false,
+        true,
+        false,
+        0,
+        "%Y-%m-%d-%H%M%S",
+        "",
+        true
+      ],
+      "widgets_values_named": {
+        "filename": "metadata-review",
+        "path": "",
+        "extension": "png",
+        "lossless_webp": true,
+        "quality_jpeg_or_webp": 100,
+        "optimize_png": false,
+        "embed_workflow": true,
+        "save_workflow_as_json": false,
+        "counter": 0,
+        "time_format": "%Y-%m-%d-%H%M%S",
+        "label": "",
+        "show_preview": true
+      }
+    },
+    {
+      "id": 4,
+      "type": "Read Image Saver Metadata",
+      "pos": [
+        1120,
+        660
+      ],
+      "size": [
+        280,
+        330
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "metadata",
+          "name": "metadata",
+          "type": "METADATA",
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "modelname",
+          "name": "modelname",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "localized_name": "positive",
+          "name": "positive",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "localized_name": "negative",
+          "name": "negative",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "localized_name": "width",
+          "name": "width",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "localized_name": "height",
+          "name": "height",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "localized_name": "seed",
+          "name": "seed",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "localized_name": "steps",
+          "name": "steps",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "localized_name": "cfg",
+          "name": "cfg",
+          "type": "FLOAT",
+          "links": null
+        },
+        {
+          "localized_name": "sampler_name",
+          "name": "sampler_name",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "localized_name": "scheduler_name",
+          "name": "scheduler_name",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "localized_name": "denoise",
+          "name": "denoise",
+          "type": "FLOAT",
+          "links": null
+        },
+        {
+          "localized_name": "clip_skip",
+          "name": "clip_skip",
+          "type": "INT",
+          "links": null
+        },
+        {
+          "localized_name": "hashes",
+          "name": "hashes",
+          "type": "STRING",
+          "links": [
+            5
+          ]
+        },
+        {
+          "localized_name": "a1111_params",
+          "name": "a1111_params",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Read Image Saver Metadata"
+      }
+    },
+    {
+      "id": 5,
+      "type": "PreviewAny",
+      "pos": [
+        1450,
+        660
+      ],
+      "size": [
+        430,
+        240
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "source",
+          "name": "source",
+          "type": "*",
+          "link": 5
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "STRING",
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewAny"
+      },
+      "widgets_values": [],
+      "widgets_values_named": {}
+    },
+    {
+      "id": 6,
+      "type": "PrimitiveStringMultiline",
+      "title": "Additional resources",
+      "pos": [
+        570,
+        -130
+      ],
+      "size": [
+        400,
+        160
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            6
+          ]
+        }
+      ],
+      "properties": {},
+      "widgets_values": [
+        "urn:air:sdxl:lora:civitai:12@103:0.8"
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      2,
+      2,
+      0,
+      "METADATA"
+    ],
+    [
+      2,
+      2,
+      0,
+      3,
+      1,
+      "METADATA"
+    ],
+    [
+      3,
+      1,
+      0,
+      3,
+      0,
+      "IMAGE"
+    ],
+    [
+      4,
+      2,
+      0,
+      4,
+      0,
+      "METADATA"
+    ],
+    [
+      5,
+      4,
+      12,
+      5,
+      0,
+      "STRING"
+    ],
+    [
+      6,
+      6,
+      0,
+      2,
+      13,
+      "STRING"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.65,
+      "offset": [
+        20,
+        70
+      ]
+    }
+  },
+  "version": 0.4
+}

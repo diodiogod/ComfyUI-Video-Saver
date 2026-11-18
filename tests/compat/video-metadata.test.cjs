@@ -31,9 +31,10 @@ for (const fixture of fixtures) {
     }
     const metadata = parse(tags);
     const upscale = fixture.stage === 'upscale';
-    assert.equal(metadata.prompt, upscale ? 'New upscale prompt' : 'ABCD positive');
+    const edited = fixture.stage === 'edited';
+    assert.equal(metadata.prompt, upscale ? 'New upscale prompt' : edited ? 'Edited video prompt' : 'ABCD positive');
     assert.equal(metadata.negativePrompt, upscale ? 'new negative' : 'negative');
-    assert.equal(metadata.seed, upscale ? 99 : 42);
+    assert.equal(metadata.seed, upscale ? 99 : edited ? 88 : 42);
     assert.equal(metadata.steps, upscale ? 12 : 20);
     assert.equal(metadata.cfgScale, upscale ? 4 : 5.5);
     assert.equal(metadata.sampler, upscale ? 'Euler' : 'DPM++ 2M Karras');
@@ -43,9 +44,9 @@ for (const fixture of fixtures) {
     const versions = metadata.civitaiResources || [];
     const ids = versions.map((resource) => resource.modelVersionId).sort((a, b) => a - b);
     const expected = { air: [101, 102], id_only: [101, 102], missing_type: [103], embedding: [104], auxiliary: [105], invalid_air: [106], offline: [], unresolved_weighted: [], no_workflow: [101] };
-    assert.deepEqual(ids, upscale ? [101, 102, 107] : expected[fixture.case]);
-    if (upscale) assert.equal(versions.find((resource) => resource.modelVersionId === 107).weight, 0.6);
-    if (['air', 'id_only'].includes(fixture.case)) {
+    assert.deepEqual(ids, upscale ? [101, 102, 107] : edited ? [101, 107] : expected[fixture.case]);
+    if (upscale || edited) assert.equal(versions.find((resource) => resource.modelVersionId === 107).weight, 0.6);
+    if (!edited && ['air', 'id_only'].includes(fixture.case)) {
       assert.equal(versions.find((resource) => resource.modelVersionId === 102).weight, 0.8);
     }
     if (fixture.case === 'embedding') assert.equal(versions[0].type, 'embedding');

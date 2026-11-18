@@ -13,6 +13,7 @@ from typing import Any, Iterable
 import av
 
 from .resource_refs import parse_reference, resource_identity
+from .image_metadata import parse_parameters
 
 
 MAX_METADATA_VALUE_BYTES = 2 * 1024 * 1024
@@ -147,6 +148,67 @@ def _check_metadata_size(tags: dict[str, str]) -> dict[str, str]:
     for key, value in tags.items():
         if len(value.encode("utf-8")) > MAX_METADATA_VALUE_BYTES:
             raise ValueError(f"Video metadata field '{key}' exceeds the 2 MiB safety limit.")
+    return tags
+
+
+def update_edited_generation_tags(original, edited, parameters_before, removed_settings, removed_resources):
+    """Synchronize the text and Civitai-facing tags, keeping the source workflow and original prompt."""
+    tags = dict(original.source_metadata_tags)
+    previous = parse_parameters(parameters_before)[2]
+    current = parse_parameters(edited.a111_params)[2]
+    records = current.get("Civitai resources", [])
+    records = records if isinstance(records, list) else []
+    if edited.a111_params:
+        tags["parameters"] = edited.a111_params
+    else:
+        tags.pop("parameters", None)
+    if records:
+        tags["civitaiResources"] = _json_value(records)
+    else:
+        tags.pop("civitaiResources", None)
+    extra = json.loads(tags.get("extraMetadata") or "{}")
+    if isinstance(extra, dict):
+        if records:
+            extra["civitaiResources"] = records
+        else:
+            extra.pop("civitaiResources", None)
+        if extra:
+            tags["extraMetadata"] = _json_value(extra)
+        else:
+            tags.pop("extraMetadata", None)
+
+    old_prompt = json.loads(tags.get("prompt") or "{}")
+    if old_prompt:
+        tags.setdefault("prompt_original", tags["prompt"])
+    old_hashes, new_hashes = previous.get("Hashes"), current.get("Hashes")
+    removed_names = {_filename_key(name) for name in removed_resources}
+    if isinstance(old_hashes, dict):
+        remaining = {str(value).casefold() for value in new_hashes.values()} if isinstance(new_hashes, dict) else set()
+        removed_names.update(_filename_key(name.split(":", 1)[-1]) for name, value in old_hashes.items()
+                             if str(value).casefold() not in remaining)
+
+    fallback_nodes = {}
+    for index, node in enumerate(_source_resource_nodes(old_prompt if isinstance(old_prompt, dict) else {})):
+        inputs = node["inputs"]
+        filename = next(iter(inputs.values()))
+        if (filename.lower().startswith(("urn:air:", "civitai:")) or _filename_key(filename) in removed_names
+                or (_resource_node_kind(inputs) == "model" and edited.modelname != original.modelname)):
+            continue
+        fallback_nodes[str(index)] = node
+
+    graph = json.loads(resources_to_prompt_json(edited, records, fallback_nodes))
+    removed = {key.casefold() for key in removed_settings}
+    original_sampler = next((node["inputs"] for node in old_prompt.values()
+                             if isinstance(node, dict) and node.get("class_type") == "KSampler"
+                             and isinstance(node.get("inputs"), dict)), None) if isinstance(old_prompt, dict) else None
+    sampler = next(node["inputs"] for node in graph.values() if node["class_type"] == "KSampler")
+    for key, field in (("Steps", "steps"), ("Seed", "seed"), ("CFG scale", "cfg"),
+                       ("Sampler", "sampler_name"), ("Size", "latent_image"),
+                       ("Denoising strength", "denoise"), ("Schedule type", "scheduler")):
+        if key not in current and (key.casefold() in removed or
+                                   (original_sampler is not None and field not in original_sampler and key not in previous)):
+            sampler.pop(field, None)
+    tags["prompt"] = _json_value(graph)
     return tags
 
 def _source_resource_nodes(prompt: dict[str, Any] | None) -> list[dict[str, Any]]:

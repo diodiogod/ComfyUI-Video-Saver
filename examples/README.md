@@ -2,6 +2,10 @@
 
 This directory contains example workflows for the ComfyUI Video Saver and inherited Image Saver nodes.
 
+## Image metadata editor
+
+Copy [`metadata-example.png`](./metadata-example.png) to ComfyUI's input directory, then open [`image-metadata-editor-example.json`](./image-metadata-editor-example.json). The workflow appends to the positive prompt, removes a saved LoRA and setting, and adds a weighted resource from a STRING node. It shows the edits before running and saves them with Image Saver Simple. The resource IDs are demonstration data.
+
 ## [`example-workflow.json`](./example-workflow.json)
 
 This is the **standard example workflow** and the recommended starting point for most users. 

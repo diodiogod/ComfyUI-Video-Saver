@@ -48,11 +48,19 @@ Try the [Video Upscaling — Preserve or Edit Metadata example](./example_workfl
 
 Use **Image Saver — Read Video Metadata** to recover the source video's metadata. Upload/select an MP4 or WebM, or connect the original native `Load Video` output to its optional `video` input. Connect the reader's `metadata` output directly to `metadata` on **Save Native Video** or **Add Metadata to VHS Video**; process the frames/audio with your usual nodes. For VHS, select the same source file in the reader and your VHS loader.
 
-For images, use **Image Saver — Read Image Metadata** with a PNG, JPEG, WebP, or AVIF file. It reads PNG text metadata and JPEG/WebP/AVIF EXIF, including Image Saver's parameters and embedded ComfyUI graphs. Select the original file: the decoded `IMAGE` output of Load Image does not carry file metadata. Its `metadata` output connects to the image/video savers or the shared expander.
+For images, use **Load Image with Metadata** with a PNG, JPEG, WebP, or AVIF file. It provides the usual ComfyUI image and mask outputs alongside `metadata` and the recovered prompts. It also shows copyable Table and Text views without running the graph. A mask editor copy may no longer contain the original metadata. Existing **Image Saver — Read Image Metadata** workflows continue to work.
 
 The reader does not decode frames, hash model files, or contact Civitai. It preserves the source generation tags, including prompts, settings, hashes, resource versions, and weights. You do not need the original models installed. The output video's resolution can change while its metadata continues to describe the original generation.
 
-Both media readers output only `METADATA`. To inspect or reuse individual values, connect it to **Read Image Saver Metadata**. It exposes `modelname`, positive/negative prompts, width, height, seed, steps, CFG, sampler, scheduler, denoise, clip skip, hashes, and the original A1111 parameter text. Sampler and scheduler outputs connect directly to compatible sampler inputs. This expander also accepts the existing **Image Saver Metadata** output; **Read Image Saver Pipe** remains the reader for pipe configurations.
+To inspect or wire individual values, connect `METADATA` to **Expand Image Saver Metadata** (previously displayed as **Read Image Saver Metadata**). It exposes prompts, model name, dimensions, seed, steps, CFG, sampler, scheduler, denoise, clip skip, resource references, and the A1111 parameter text. Sampler and scheduler connect directly to compatible sampler inputs.
+
+### Edit metadata before saving
+
+Insert **Edit Metadata** between a loader or reader and the saver. The editor returns `METADATA` for **Image Saver Simple**, **Save Native Video**, or **Add Metadata to VHS Video**. Use `[original]` to keep text, `[original], more detail` to append, or enter new text to replace it. Numeric and sampler settings change when connected. Use the checklists to remove settings or resource attribution. Connect a STRING to `additional_hashes` to merge resource references. Matching references retain their saved weight unless you supply a new one.
+
+The editor previews file-backed image and video sources and chains of editors before execution. Computed inputs require a run. Disconnecting the metadata path clears the preview. For videos, the saver writes the edited settings and resource list into both the parameters and the graph Civitai reads. To preserve a video that carries only a ComfyUI graph, connect the reader directly to the saver. For workflow-only images, the loader displays any recovered settings and leaves the A1111 parameter text empty.
+
+Try the [image metadata editor example](./examples/README.md#image-metadata-editor).
 
 The **`hashes`** output carries **all available resource references and weights** in one comma-separated string: literal hashes, Civitai model-version IDs, and AIRs. The metadata creator and savers use the same format. The historical socket name is retained, but a resource stored as an ID/AIR does not need to be converted to a hash. Only information embedded in the source file can be recovered; reading metadata makes no Civitai requests.
 
@@ -72,7 +80,7 @@ Weighted hashes that cannot be resolved are retained in a `Resource references` 
 
 This path carries resource attribution into the new metadata. Use the original complete `METADATA` connection instead when you want to preserve the source generation metadata unchanged, including its prompt and workflow history.
 
-With `embed_workflow` enabled on the saver, the current processing workflow is saved in `workflow`, the original generation workflow is retained in `workflow_original`, and the processing execution graph is stored separately in `prompt_postprocess`. The source `prompt`, `prompt_original`, parameters, and resource records remain intact. Disabling workflow embedding omits the workflow history while retaining generation metadata.
+With `embed_workflow` enabled on the saver, the current processing workflow is saved in `workflow`, the original generation workflow is retained in `workflow_original`, and the processing execution graph is stored separately in `prompt_postprocess`. A direct connection preserves the source generation tags. When using Edit Metadata, the saver writes the edited `prompt` and resource records and keeps the original execution graph in `prompt_original`. Disabling workflow embedding omits the workflow history while retaining generation metadata.
 
 Individual field extraction supports A1111 parameters and standard ComfyUI sampler/conditioning graphs, including this pack's Civitai compatibility graph. Unsupported custom graphs are still preserved, but individual values may be unavailable and use the saver defaults. Metadata stripped from a source file cannot be recovered.
 
@@ -161,24 +169,6 @@ Example:
 | `%a` | Weekday (short) | Thu |
 | `%F` | YYYY-MM-DD | 2023-11-16 |
 | `%T` | HH:MM:SS | 13:13:31 |
-
-## Reusing metadata from an image
-
-**Load Image with Metadata** works like ComfyUI's Load Image (upload, preview, mask editor, `image` and `mask` outputs) and also reads the generation metadata stored in the file. Use it to keep the original prompt, settings and Civitai resources when saving an upscaled or otherwise processed version:
-
-- `metadata` → connect to the `metadata` input of **Image Saver Simple**. The original A1111 parameters are written unchanged; filename variables like `%seed` use the original values.
-- `positive` / `negative` → the prompts, e.g. for a second sampling pass.
-
-The node shows the metadata as soon as an image is selected, without running the workflow, as a table or as the raw text. Both can be copied.
-
-To change parts of the metadata before saving, put **Edit Metadata** in between. Only what you change is rewritten in the A1111 parameters; hashes, Civitai resources and all other settings stay as they are, without hashing or Civitai lookups:
-
-- `positive`, `negative`, `modelname`: `[original]` keeps the text, `[original], 4k` appends, other text replaces it, empty text removes it (same as Edit Image Saver Pipe).
-- `seed`, `steps`, `cfg`, `width`, `height`, `denoise`, `clip_skip`, `sampler_name`, `scheduler_name`: only change when connected, e.g. the size of the upscaled image or the denoise of a second pass.
-- `remove_settings`: comma-separated settings to remove, e.g. `Civitai resources, Hashes, Model hash`.
-- `remove_resources`: comma-separated resources to remove from `Hashes`, `Civitai resources` and `Lora hashes`/`TI hashes`, by name (e.g. `EasyNegative`, or the Civitai name shown in the loader's table), hash, Civitai version ID or AIR. Useful after removing embeddings or LoRAs from a prompt; the model's hash stays.
-
-It reads images saved by Image Saver, A1111/Forge and ComfyUI (PNG, JPEG, WebP, AVIF). For images saved by ComfyUI's own nodes, which store no A1111 parameters, prompts and settings are read from the embedded workflow on a best-effort basis, and the `metadata` output carries no parameters to write. Editing the image in the mask editor creates a copy without the original's metadata; the node warns about that.
 
 ## Optional: Pipe Integration (Advanced Orchestration)
 

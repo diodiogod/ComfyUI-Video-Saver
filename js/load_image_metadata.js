@@ -12,8 +12,7 @@ const PREVIEW_NODES = {
 };
 const POLL_MS = 400; // also catches upload, paste, mask editor and workflow loading, which don't all fire callbacks
 const MIN_HEIGHT = 30; // just the button bar
-const MAX_HEIGHT = 480; // longer tables scroll
-const TEXT_VIEW_HEIGHT = 200;
+const PREVIEW_HEIGHT = 280; // reserve the same space for Table and Text; longer content scrolls
 
 const STYLE = `
 .isv-meta { display: flex; flex-direction: column; gap: 4px; height: 100%; box-sizing: border-box; font-size: 11px;
@@ -23,7 +22,7 @@ const STYLE = `
   border: 1px solid var(--border-color, #555); background: var(--comfy-input-bg, #222); color: inherit; }
 .isv-meta-bar button.active { background: var(--border-color, #555); }
 .isv-meta-status { flex: 1; text-align: right; opacity: 0.7; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.isv-meta-warning { flex: none; color: var(--error-text, #f0b060); white-space: pre-wrap; }
+.isv-meta-warning { flex: none; max-height: 40%; overflow: auto; color: var(--error-text, #f0b060); white-space: pre-wrap; }
 .isv-meta-body { flex: 1; min-height: 0; overflow: auto; border-radius: 4px; background: var(--comfy-input-bg, #222); }
 .isv-meta-body table { border-collapse: collapse; width: 100%; }
 .isv-meta-body td { vertical-align: top; padding: 2px 4px; border-bottom: 1px solid var(--border-color, #333); }
@@ -44,7 +43,7 @@ function addStyle() {
     document.head.appendChild(style);
 }
 
-async function copyText(text) {
+export async function copyText(text) {
     try {
         await navigator.clipboard.writeText(text);
         return true;
@@ -163,16 +162,13 @@ function createPreview(node, fileWidgetName) {
         render();
     }
 
-    // The widget is exactly as tall as its content (up to a cap), so the node grows to fit the table and any
-    // extra height from resizing the node goes to the image preview instead of empty table space.
+    // The image preview receives any remaining node height. Changing this allocation between Table
+    // and Text resizes/recenters the image, so reserve a fixed panel height for either view.
     let contentHeight = MIN_HEIGHT;
     function measure() {
         if (!bar.offsetHeight) return; // not laid out (e.g. hidden while zoomed out)
-        const content = body.firstElementChild;
-        const bodyHeight = !content ? 0 : view() === "text" ? TEXT_VIEW_HEIGHT : content.scrollHeight + 2;
-        const warningHeight = warning.hidden ? 0 : warning.offsetHeight + 4;
         const margin = 2 * (previewWidget?.margin ?? 10); // the canvas insets DOM widgets by this margin
-        const height = Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, bar.offsetHeight + warningHeight + 4 + bodyHeight)) + margin;
+        const height = (data ? PREVIEW_HEIGHT : MIN_HEIGHT) + margin;
         if (Math.abs(height - contentHeight) < 2) return;
         contentHeight = height;
         const minimum = node.computeSize();
@@ -195,7 +191,7 @@ function createPreview(node, fileWidgetName) {
     const imageWidget = () => node.widgets?.find((widget) => widget.name === fileWidgetName);
     const timer = setInterval(() => {
         keepLast();
-        measure(); // also catches re-wrapping when the node gets narrower or wider
+        measure();
         const value = imageWidget()?.value ?? null;
         if (value !== current) update(value);
     }, POLL_MS);

@@ -10,6 +10,7 @@ from comfy_execution.graph_utils import ExecutionBlocker
 
 from .nodes import Metadata
 from .saver.metadata_reader import MissingGenerationMetadata, metadata_fields, read_image_tags, read_resource_records, read_video_tags
+from .saver.metadata_resources import resource_references
 from .saver.resource_refs import export_resource_references
 from .utils_civitai import CIVITAI_SAMPLER_MAP
 
@@ -149,6 +150,7 @@ class ReadImageSaverMetadata(io.ComfyNode):
     def define_schema(cls):
         return io.Schema(
             node_id="Read Image Saver Metadata",
+            display_name="Expand Image Saver Metadata",
             category="ImageSaver",
             description="Expand Image Saver METADATA into prompts and generation settings. hashes carries all saved resource references and weights in the format accepted by additional_hashes. No hashing or Civitai requests.",
             inputs=[io.Custom("METADATA").Input("metadata", tooltip="The complete metadata bundle from a media reader or Image Saver Metadata, including saved resource identities.")],
@@ -172,13 +174,18 @@ class ReadImageSaverMetadata(io.ComfyNode):
 
     @classmethod
     def execute(cls, metadata):
-        tags = dict(metadata.source_metadata_tags or {})
-        if metadata.a111_params:
-            tags["parameters"] = metadata.a111_params
-        resources = read_resource_records(tags)
+        if metadata is None:
+            return io.NodeOutput(*([ExecutionBlocker(None)] * 14))
+        if metadata.source_metadata_tags:
+            tags = dict(metadata.source_metadata_tags)
+            if metadata.a111_params:
+                tags["parameters"] = metadata.a111_params
+            references = export_resource_references(read_resource_records(tags), metadata.final_hashes)
+        else:
+            references = resource_references(metadata.a111_params, metadata.final_hashes)
         return io.NodeOutput(
             metadata.modelname, metadata.positive, metadata.negative,
             metadata.width, metadata.height, metadata.seed, metadata.steps, metadata.cfg,
             metadata.sampler_name, metadata.scheduler_name, metadata.denoise, metadata.clip_skip,
-            export_resource_references(resources, metadata.final_hashes), metadata.a111_params,
+            references, metadata.a111_params,
         )

@@ -103,6 +103,7 @@ def test_inputs_match_edit_pipe():
     assert inputs["optional"]["seed"] == pipe_inputs["seed"]
     assert inputs["optional"]["positive"][1]["default"] == "[original]"
     assert inputs["optional"]["sampler_name"][1].get("forceInput") is True
+    assert inputs["optional"]["additional_hashes"][1].get("forceInput") is True
 
 
 @pytest.mark.parametrize("new,expected", [(None, "x"), ("[original]", "x"), ("[original] y", "x y"), ("z", "z"), ("", "")])

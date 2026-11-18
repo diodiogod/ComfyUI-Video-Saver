@@ -63,4 +63,4 @@ jobs:
     - name: Test native Civitai video metadata compatibility
       run: npm test --prefix tests/compat
     - name: Test metadata-reader notifications
-      run: node --test tests/metadata-reader-ui.test.cjs
+      run: node --test tests/metadata-reader-ui.test.cjs tests/metadata-editor-ui.test.cjs tests/metadata-preview-ui.test.cjs
