@@ -1,22 +1,21 @@
 import { app } from '../../scripts/app.js'
 import { api } from '../../scripts/api.js'
 
-// Live metadata preview for "Load Image with Metadata (Image Saver)": shows the selected file's generation
+// Live preview for "Load Media with Metadata (Image Saver)": shows the selected file's generation
 // metadata without running the workflow, as a table or as the raw A1111 text, both copyable.
 // File content is untrusted: only ever inserted via textContent/value, never as HTML.
 
-// Nodes that get the preview, mapped to the name of the widget holding the selected file.
-// Other loaders (e.g. for video, in forks) can reuse the preview by adding an entry here.
-const PREVIEW_NODES = {
-    "Load Image with Metadata (Image Saver)": "image",
-};
+const LOADER_ID = "Load Image with Metadata (Image Saver)"; // retain the saved workflow ID
+const FILE_WIDGET = "image";
 const POLL_MS = 400; // also catches upload, paste, mask editor and workflow loading, which don't all fire callbacks
 const MIN_HEIGHT = 30; // just the button bar
 const PREVIEW_HEIGHT = 280; // reserve the same space for Table and Text; longer content scrolls
+const VIDEO_HEIGHT = 200;
 
 const STYLE = `
 .isv-meta { display: flex; flex-direction: column; gap: 4px; height: 100%; box-sizing: border-box; font-size: 11px;
   color: var(--input-text, #ddd); }
+.isv-meta-video { flex: none; width: 100%; height: ${VIDEO_HEIGHT}px; object-fit: contain; background: #111; border-radius: 4px; }
 .isv-meta-bar { display: flex; gap: 4px; align-items: center; flex: none; }
 .isv-meta-bar button { font-size: 11px; padding: 1px 6px; cursor: pointer; border-radius: 4px;
   border: 1px solid var(--border-color, #555); background: var(--comfy-input-bg, #222); color: inherit; }
@@ -66,6 +65,83 @@ function el(tag, className, text) {
     if (className) element.className = className;
     if (text !== undefined) element.textContent = text;
     return element;
+}
+
+function videoFile(value) {
+    return typeof value === "string" && /\.(?:mp4|webm)(?: \[(?:input|output|temp)\])?$/i.test(value);
+}
+
+function videoPreviewUrl(value) {
+    const annotation = value.match(/ \[(input|output|temp)\]$/);
+    const path = value.slice(0, annotation?.index ?? value.length).replaceAll("\\", "/");
+    const slash = path.lastIndexOf("/");
+    return api.apiURL("/view?" + new URLSearchParams({
+        filename: path.slice(slash + 1),
+        subfolder: path.slice(0, Math.max(0, slash)),
+        type: annotation?.[1] ?? "input",
+    }));
+}
+
+function clearNativeImagePreview(node) {
+    node.imgs = undefined;
+    node.imageIndex = null;
+    const index = node.widgets?.findIndex(widget => widget.name === "$$canvas-image-preview") ?? -1;
+    if (index >= 0) {
+        node.widgets[index].onRemove?.();
+        node.widgets.splice(index, 1);
+        node.setDirtyCanvas?.(true, true);
+    }
+}
+
+function allowMixedUpload(node, picker) {
+    const button = node.widgets?.find(widget => widget.name === "upload");
+    if (!button || !picker) return () => {};
+    const imagePreview = picker.callback;
+    picker.callback = function (...args) {
+        if (!videoFile(picker.value)) return imagePreview?.apply(this, args);
+        clearNativeImagePreview(node);
+    };
+
+    // Keep the core image preview, paste, and mask-editor integration. Give the same upload
+    // button a chooser for both media types, using ComfyUI's normal input upload route.
+    const chooser = el("input");
+    chooser.type = "file";
+    chooser.accept = "image/*,.mp4,.webm";
+    const controller = new AbortController();
+    button.callback = () => {
+        if (!node.isUploading) chooser.click();
+    };
+    chooser.addEventListener("change", async () => {
+        const file = chooser.files?.[0];
+        chooser.value = "";
+        if (!file || node.isUploading) return;
+        node.isUploading = true;
+        try {
+            const fields = new FormData();
+            fields.append("image", file);
+            fields.append("type", "input");
+            const response = await api.fetchApi("/upload/image", { method: "POST", body: fields, signal: controller.signal });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const { name, subfolder } = await response.json();
+            if (controller.signal.aborted) return;
+            const value = subfolder ? `${subfolder}/${name}` : name;
+            const previous = picker.value;
+            const values = picker.options.values;
+            if (Array.isArray(values) && !values.includes(value)) values.push(value);
+            picker.value = value;
+            picker.callback?.(value);
+            node.onWidgetChanged?.(picker.name, value, previous, picker);
+            node.graph?.change();
+            node.setDirtyCanvas?.(true, true);
+        } catch (error) {
+            if (!controller.signal.aborted) {
+                app.extensionManager.toast.add({ severity: "warn", summary: "Could not upload media", detail: String(error) });
+            }
+        } finally {
+            node.isUploading = false;
+        }
+    }, { signal: controller.signal });
+    return () => controller.abort();
 }
 
 function createPreview(node, fileWidgetName) {
@@ -138,8 +214,36 @@ function createPreview(node, fileWidgetName) {
 
     let current = null;
     let request = 0;
+    let player = null;
+    function showVideo(filename) {
+        if (!videoFile(filename)) {
+            if (player) {
+                player.pause();
+                player.removeAttribute("src");
+                player.load();
+                player.remove();
+                player = null;
+            }
+            return;
+        }
+        clearNativeImagePreview(node);
+        if (!player) {
+            player = el("video", "isv-meta-video");
+            player.controls = true;
+            player.preload = "metadata";
+            player.playsInline = true;
+            player.setAttribute("aria-label", "Source video preview");
+            for (const type of ["pointerdown", "mousedown", "wheel"]) {
+                player.addEventListener(type, event => event.stopPropagation());
+            }
+            root.prepend(player);
+        }
+        player.src = videoPreviewUrl(filename);
+    }
+
     async function update(filename) {
         current = filename;
+        showVideo(filename);
         const id = ++request;
         if (!filename) {
             data = null;
@@ -153,7 +257,9 @@ function createPreview(node, fileWidgetName) {
             const json = await response.json();
             if (id !== request) return; // a newer selection is in flight
             data = response.ok ? json : { rows: [], parameters: "", warning: json.error ?? `HTTP ${response.status}` };
-            status.textContent = data.source === "parameters" ? "A1111 parameters" : data.source === "workflow" ? "ComfyUI workflow" : "";
+            status.textContent = {
+                parameters: "A1111 parameters", workflow: "ComfyUI workflow", resources: "Saved resources",
+            }[data.source] ?? "";
         } catch (error) {
             if (id !== request) return;
             data = { rows: [], parameters: "", warning: `Could not read metadata: ${error}` };
@@ -162,13 +268,12 @@ function createPreview(node, fileWidgetName) {
         render();
     }
 
-    // The image preview receives any remaining node height. Changing this allocation between Table
-    // and Text resizes/recenters the image, so reserve a fixed panel height for either view.
+    // Reserve the same amount of space for Table and Text so neither preview moves.
     let contentHeight = MIN_HEIGHT;
     function measure() {
         if (!bar.offsetHeight) return; // not laid out (e.g. hidden while zoomed out)
         const margin = 2 * (previewWidget?.margin ?? 10); // the canvas insets DOM widgets by this margin
-        const height = (data ? PREVIEW_HEIGHT : MIN_HEIGHT) + margin;
+        const height = (data ? PREVIEW_HEIGHT : MIN_HEIGHT) + (player ? VIDEO_HEIGHT + 4 : 0) + margin;
         if (Math.abs(height - contentHeight) < 2) return;
         contentHeight = height;
         const minimum = node.computeSize();
@@ -190,26 +295,34 @@ function createPreview(node, fileWidgetName) {
 
     const imageWidget = () => node.widgets?.find((widget) => widget.name === fileWidgetName);
     const timer = setInterval(() => {
-        keepLast();
-        measure();
         const value = imageWidget()?.value ?? null;
         if (value !== current) update(value);
+        if (player) clearNativeImagePreview(node); // an image request started before switching may still finish
+        keepLast();
+        measure();
     }, POLL_MS);
 
-    return { root, stop: () => clearInterval(timer), attach: (widget) => { previewWidget = widget; }, height: () => contentHeight };
+    return {
+        root, attach: (widget) => { previewWidget = widget; }, height: () => contentHeight,
+        stop() {
+            request++;
+            clearInterval(timer);
+            showVideo(null);
+        },
+    };
 }
 
 app.registerExtension({
     name: "ComfyUI-Image-Saver.LoadImageWithMetadata",
     async beforeRegisterNodeDef(nodeType, nodeData) {
-        const fileWidgetName = PREVIEW_NODES[nodeData.name];
-        if (!fileWidgetName) return;
+        if (nodeData.name !== LOADER_ID) return;
         addStyle();
 
         const onNodeCreated = nodeType.prototype.onNodeCreated;
         nodeType.prototype.onNodeCreated = function () {
             const result = onNodeCreated?.apply(this, arguments);
-            const preview = createPreview(this, fileWidgetName);
+            const stopUpload = allowMixedUpload(this, this.widgets?.find(widget => widget.name === FILE_WIDGET));
+            const preview = createPreview(this, FILE_WIDGET);
             const widget = this.addDOMWidget("metadata_preview", "image_saver_metadata", preview.root, {
                 serialize: false,
                 getMinHeight: () => preview.height(),
@@ -220,6 +333,7 @@ app.registerExtension({
 
             const onRemoved = this.onRemoved;
             this.onRemoved = function () {
+                stopUpload();
                 preview.stop();
                 return onRemoved?.apply(this, arguments);
             };

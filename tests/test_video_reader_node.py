@@ -14,6 +14,7 @@ import comfy
 import folder_paths
 from image_saver_under_test.nodes import ImageSaver, Metadata
 from image_saver_under_test.nodes import ImageSaverMetadata
+from image_saver_under_test.nodes_image_loader import LoadImageWithMetadata, metadata_response
 from image_saver_under_test.nodes_metadata_edit import EditMetadata, edit_preview_response
 from image_saver_under_test import utils_civitai
 from image_saver_under_test.saver.metadata_reader import MissingGenerationMetadata, read_image_tags, read_video_tags, read_resource_records
@@ -34,6 +35,7 @@ def reader_module(monkeypatch):
     api = ModuleType("comfy_api.latest")
     api.io = SimpleNamespace(ComfyNode=type("ComfyNode", (), {}),
                              NodeOutput=lambda *values, **kwargs: SimpleNamespace(result=values, ui=kwargs.get("ui")))
+    api.InputImpl = SimpleNamespace(VideoFromFile=lambda path: SimpleNamespace(get_stream_source=lambda: path))
     monkeypatch.setitem(sys.modules, "comfy_api", ModuleType("comfy_api"))
     monkeypatch.setitem(sys.modules, "comfy_api.latest", api)
     graph_utils = ModuleType("comfy_execution.graph_utils")
@@ -101,6 +103,38 @@ def test_file_picker_uses_comfyui_path_resolver(reader_module, source_video, mon
     result = reader_module.ImageSaverReadVideoMetadata.execute(file="source.mp4").result
     assert requested == ["source.mp4"]
     assert result[0].source_metadata_tags["parameters"] == PARAMETERS
+
+
+def test_combined_loader_previews_video_and_keeps_legacy_output_indexes(reader_module, source_video, monkeypatch):
+    root = source_video.parent
+    monkeypatch.setattr(folder_paths, "get_input_directory", lambda: str(root), raising=False)
+    monkeypatch.setattr(folder_paths, "get_annotated_filepath", lambda file: str(root / file), raising=False)
+    loader = LoadImageWithMetadata()
+    assert loader.RETURN_TYPES == ("IMAGE", "MASK", "METADATA", "STRING", "STRING", "VIDEO")
+    assert loader.VALIDATE_INPUTS(source_video.name) is True
+    assert loader.VALIDATE_INPUTS("missing.webm") != True
+    pixels, mask, metadata, positive, negative, video = loader.load_image(source_video.name)
+    assert isinstance(pixels, reader_module.ExecutionBlocker)
+    assert isinstance(mask, reader_module.ExecutionBlocker)
+    assert (positive, negative, metadata.a111_params) == ("ABCD original", "blurry", PARAMETERS)
+    assert video.get_stream_source() == str(source_video)
+    status, preview = metadata_response(source_video.name)
+    assert status == 200
+    assert preview["parameters"] == PARAMETERS
+    assert ("Positive", positive) in preview["rows"]
+    assert ("Video size", "16x16") in preview["rows"]
+
+
+def test_combined_loader_preserves_video_when_generation_metadata_is_missing(reader_module, source_video, monkeypatch):
+    plain = embed_video_metadata(source_video, {"workflow": "{}"})
+    root = source_video.parent
+    monkeypatch.setattr(folder_paths, "get_input_directory", lambda: str(root), raising=False)
+    monkeypatch.setattr(folder_paths, "get_annotated_filepath", lambda file: str(root / file), raising=False)
+    result = LoadImageWithMetadata().load_image(os.path.basename(plain))
+    assert isinstance(result["result"][2], reader_module.ExecutionBlocker)
+    assert result["result"][5].get_stream_source() == str(plain)
+    assert "No generation metadata" in result["ui"]["metadata_warning"][0]
+    assert "No generation metadata" in metadata_response(os.path.basename(plain))[1]["warning"]
 
 
 def test_edit_video_preview_and_remux_update_all_resource_tags(reader_module, source_video, monkeypatch):

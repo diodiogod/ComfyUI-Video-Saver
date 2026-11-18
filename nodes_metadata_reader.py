@@ -9,7 +9,7 @@ from comfy_api.latest import io
 from comfy_execution.graph_utils import ExecutionBlocker
 
 from .nodes import Metadata
-from .saver.metadata_reader import MissingGenerationMetadata, metadata_fields, read_image_tags, read_resource_records, read_video_tags
+from .saver.metadata_reader import VIDEO_EXTENSIONS, MissingGenerationMetadata, metadata_fields, read_image_tags, read_resource_records, read_video_tags
 from .saver.metadata_resources import resource_references
 from .saver.resource_refs import export_resource_references
 from .utils_civitai import CIVITAI_SAMPLER_MAP
@@ -46,7 +46,7 @@ class ImageSaverReadVideoMetadata(io.ComfyNode):
     def define_schema(cls):
         input_dir = Path(folder_paths.get_input_directory())
         files = sorted(path.name for path in input_dir.iterdir()
-                       if path.is_file() and path.suffix.lower() in {".mp4", ".webm"})
+                       if path.is_file() and path.suffix.lower() in VIDEO_EXTENSIONS)
         return io.Schema(
             node_id="Image Saver Read Video Metadata",
             display_name="Image Saver — Read Video Metadata",
@@ -73,7 +73,7 @@ class ImageSaverReadVideoMetadata(io.ComfyNode):
             if file == USE_VIDEO_INPUT:
                 raise ValueError("Select a source MP4/WebM or connect the native Load Video output to video.")
             source = folder_paths.get_annotated_filepath(file)
-            if Path(source).suffix.lower() not in {".mp4", ".webm"}:
+            if Path(source).suffix.lower() not in VIDEO_EXTENSIONS:
                 raise ValueError("Select an MP4 or WebM video.")
         try:
             tags, width, height = read_video_tags(source)
@@ -97,7 +97,7 @@ class ImageSaverReadVideoMetadata(io.ComfyNode):
             return True
         if not folder_paths.exists_annotated_filepath(file):
             return "The selected source video does not exist."
-        if Path(folder_paths.get_annotated_filepath(file)).suffix.lower() not in {".mp4", ".webm"}:
+        if Path(folder_paths.get_annotated_filepath(file)).suffix.lower() not in VIDEO_EXTENSIONS:
             return "Select an MP4 or WebM video."
         return True
 

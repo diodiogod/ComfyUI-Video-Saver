@@ -317,7 +317,11 @@ def parse_comfy_graph(prompt_json: str) -> tuple[str, str, dict[str, Any]]:
 
 def read_image_metadata(path: str) -> ImageMetadata:
     with Image.open(path) as image:
-        result = ImageMetadata(tags=read_tags(image), width=image.width, height=image.height)
+        return metadata_for_display(read_tags(image), image.width, image.height)
+
+
+def metadata_for_display(tags: dict[str, str], width: int, height: int) -> ImageMetadata:
+    result = ImageMetadata(tags=tags, width=width, height=height)
     if result.parameters.strip():
         result.source = "parameters"
         result.positive, result.negative, result.settings = parse_parameters(result.parameters)
@@ -347,7 +351,7 @@ def _format_value(key: str, value: Any) -> str:
     return str(value)
 
 
-def display_rows(metadata: ImageMetadata) -> list[tuple[str, str]]:
+def display_rows(metadata: ImageMetadata, size_label: str = "Image size") -> list[tuple[str, str]]:
     """Label/value pairs for showing the metadata in the UI, most useful first."""
     rows: list[tuple[str, str]] = []
     if metadata.positive:
@@ -357,6 +361,6 @@ def display_rows(metadata: ImageMetadata) -> list[tuple[str, str]]:
     for key, value in metadata.settings.items():
         if value not in ("", None, [], {}):
             rows.append((key, _format_value(key, value)))
-    rows.append(("Image size", f"{metadata.width}x{metadata.height}"))
+    rows.append((size_label, f"{metadata.width}x{metadata.height}"))
     rows.append(("Workflow embedded", "yes" if metadata.has_workflow else "no"))
     return rows

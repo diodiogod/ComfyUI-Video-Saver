@@ -17,6 +17,12 @@ class Element {
     this.offsetHeight = 22;
   }
   append(...children) { this.children.push(...children); }
+  prepend(child) { this.children.unshift(child); child.parent = this; }
+  remove() { this.parent.children = this.parent.children.filter(child => child !== this); }
+  setAttribute() {}
+  removeAttribute(name) { delete this[name]; }
+  pause() {}
+  load() {}
   replaceChildren(...children) { this.children = children; }
   addEventListener(name, callback) { this.listeners[name] = callback; }
   get firstElementChild() { return this.children[0]; }
@@ -29,8 +35,9 @@ async function previewFor(rows, initialView) {
   const data = { rows, parameters: 'Original positive prompt\nSteps: 24', source: 'parameters' };
   const context = {
     app: { registerExtension() {} },
-    api: { fetchApi: async () => ({ ok: true, json: async () => data }) },
+    api: { fetchApi: async () => ({ ok: true, json: async () => data }), apiURL: value => value },
     document: { createElement: tag => new Element(tag) },
+    URLSearchParams,
     setInterval(callback) { tick = callback; return 1; },
     clearInterval() { stopped = true; },
   };
@@ -54,6 +61,34 @@ async function previewFor(rows, initialView) {
   tick();
   return { preview, node, sizes, tick, isStopped: () => stopped };
 }
+
+test('switching file types and Table/Text keeps the matching media preview', async () => {
+  const { preview, node, tick } = await previewFor([['Video size', '320x192']], 'table');
+  const picker = node.widgets.find(widget => widget.name === 'image');
+  node.widgets.push({ name: '$$canvas-image-preview' });
+  picker.value = 'sub folder/movie.MP4 [output]';
+  tick();
+  await new Promise(setImmediate);
+  tick();
+  const [player, bar] = preview.root.children;
+  assert.equal(player.tag, 'video');
+  assert.equal(player.controls, true);
+  assert.equal(player.src, '/view?filename=movie.MP4&subfolder=sub+folder&type=output');
+  assert.equal(node.widgets.some(widget => widget.name === '$$canvas-image-preview'), false);
+  const height = preview.height();
+  const [table, text] = bar.children;
+  text.listeners.click();
+  tick();
+  table.listeners.click();
+  tick();
+  assert.equal(preview.root.firstElementChild, player);
+  assert.equal(preview.height(), height);
+  picker.value = 'example.png';
+  tick();
+  assert.equal(preview.root.firstElementChild, bar);
+  assert.equal(player.src, undefined);
+  preview.stop();
+});
 
 for (const count of [1, 100]) {
   for (const initialView of ['table', 'text']) {

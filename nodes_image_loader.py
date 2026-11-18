@@ -1,11 +1,4 @@
-"""
-"Load Image with Metadata": ComfyUI's Load Image plus the generation metadata stored in the file,
-as METADATA for the Image Saver nodes (re-saving keeps the original A1111 parameters unchanged).
-
-The node delegates image loading, change detection and validation to ComfyUI's LoadImage instead of
-subclassing it, so it doesn't inherit LoadImage's Essentials category and search aliases.
-A small HTTP route lets the frontend show the metadata as soon as an image is selected.
-"""
+"""Load an image or native video and preview its saved generation metadata."""
 import asyncio
 import os
 from typing import Any
@@ -14,7 +7,8 @@ import folder_paths
 from nodes import LoadImage
 
 from .nodes import Metadata
-from .saver.image_metadata import ImageMetadata, display_rows, read_image_metadata
+from .saver.image_metadata import ImageMetadata, display_rows, metadata_for_display, read_image_metadata
+from .saver.metadata_reader import VIDEO_EXTENSIONS, MissingGenerationMetadata, read_resource_records, read_video_tags
 from .saver.metadata_resources import references_from_settings
 from .utils_civitai import CIVITAI_SAMPLER_MAP
 
@@ -105,41 +99,77 @@ def metadata_warning(filename: str, metadata: ImageMetadata) -> str:
 class LoadImageWithMetadata:
     @classmethod
     def INPUT_TYPES(cls) -> dict[str, Any]:
-        return LoadImage.INPUT_TYPES()
+        images, options = LoadImage.INPUT_TYPES()["required"]["image"]
+        with os.scandir(folder_paths.get_input_directory()) as files:
+            videos = [file.name for file in files
+                      if file.is_file() and os.path.splitext(file.name)[1].lower() in VIDEO_EXTENSIONS]
+        return {"required": {"image": (sorted([*images, *videos]), {
+            **options, "tooltip": "Select or upload an image, MP4, or WebM. The matching media output becomes available.",
+        })}}
 
-    RETURN_TYPES = ("IMAGE", "MASK", "METADATA", "STRING", "STRING")
-    RETURN_NAMES = ("image", "mask", "metadata", "positive", "negative")
+    # Keep the original type ID, widget name, and output indexes for saved workflows.
+    RETURN_TYPES = ("IMAGE", "MASK", "METADATA", "STRING", "STRING", "VIDEO")
+    RETURN_NAMES = ("image", "mask", "metadata", "positive", "negative", "video")
     OUTPUT_TOOLTIPS = (
-        "image (same as Load Image)",
-        "mask from the alpha channel (same as Load Image)",
-        "generation metadata of the file for Image Saver Simple: re-saving keeps the original parameters and resources. Empty if the file has none.",
+        "image pixels when an image is selected",
+        "alpha mask when an image is selected",
+        "generation metadata for Edit Metadata or an Image Saver node",
         "positive prompt",
         "negative prompt",
+        "native VIDEO with its audio when an MP4 or WebM is selected",
     )
     FUNCTION = "load_image"
     CATEGORY = "ImageSaver"
-    DESCRIPTION = ("Load Image plus the generation metadata stored in the file (PNG, JPEG, WebP, AVIF from Image Saver, "
-                   "A1111/Forge or ComfyUI). Connect metadata to Image Saver Simple to keep it when saving a processed version.")
-    SEARCH_ALIASES = ["load image metadata", "read image metadata", "image prompt reader", "load generation parameters"]
+    DESCRIPTION = ("Load an image or an MP4/WebM and preview its saved generation metadata. Images provide IMAGE and MASK. "
+                   "Videos provide native VIDEO with audio. Connect METADATA to Edit Metadata or a saver.")
+    SEARCH_ALIASES = ["load image metadata", "load video metadata", "read image metadata", "image prompt reader",
+                      "load generation parameters"]
 
     def load_image(self, image: str):
+        from comfy_execution.graph_utils import ExecutionBlocker
+
+        blocked = ExecutionBlocker(None)
+        path = folder_paths.get_annotated_filepath(image)
+        if os.path.splitext(path)[1].lower() in VIDEO_EXTENSIONS:
+            from comfy_api.latest import InputImpl
+            from .nodes_metadata_reader import _metadata_from_tags
+
+            path = metadata_path(image)
+            video = InputImpl.VideoFromFile(path)
+            try:
+                metadata = _metadata_from_tags(*read_video_tags(path))
+            except MissingGenerationMetadata as error:
+                return {"result": (blocked, blocked, blocked, "", "", video),
+                        "ui": {"metadata_warning": [str(error)]}}
+            return (blocked, blocked, metadata, metadata.positive, metadata.negative, video)
+
         pixels, mask = LoadImage().load_image(image)
         try:
-            metadata = read_image_metadata(folder_paths.get_annotated_filepath(image))
+            metadata = read_image_metadata(path)
         except Exception as e:
             print(f"ComfyUI-Image-Saver: Could not read metadata from '{image}': {type(e).__name__}: {e}")
             metadata = ImageMetadata()
         warning = metadata_warning(image, metadata)
         if warning:
             print(f"ComfyUI-Image-Saver: {image}: {warning}")
-        return (pixels, mask, to_saver_metadata(metadata), metadata.positive, metadata.negative)
+        return (pixels, mask, to_saver_metadata(metadata), metadata.positive, metadata.negative, blocked)
 
     @classmethod
     def IS_CHANGED(cls, image: str):
+        path = folder_paths.get_annotated_filepath(image)
+        if os.path.splitext(path)[1].lower() in VIDEO_EXTENSIONS:
+            stat = os.stat(metadata_path(image))
+            return stat.st_mtime_ns, stat.st_size
         return LoadImage.IS_CHANGED(image)
 
     @classmethod
     def VALIDATE_INPUTS(cls, image: str):
+        if os.path.splitext(folder_paths.get_annotated_filepath(image))[1].lower() in VIDEO_EXTENSIONS:
+            try:
+                metadata_path(image)
+            except (ValueError, FileNotFoundError):
+                return f"Invalid video file: {image}"
+            return True
         return LoadImage.VALIDATE_INPUTS(image)
 
 
@@ -171,6 +201,24 @@ def metadata_response(filename: str) -> tuple[int, dict[str, Any]]:
         return 403, {"error": "invalid path"}
     except FileNotFoundError:
         return 404, {"error": "file not found"}
+    if os.path.splitext(path)[1].lower() in VIDEO_EXTENSIONS:
+        try:
+            tags, width, height = read_video_tags(path)
+            metadata = metadata_for_display(tags, width, height)
+            resources = [record for record in read_resource_records(tags) if "modelVersionId" in record or "air" in record]
+            if resources:
+                metadata.settings["Civitai resources"] = resources
+            if metadata.source == "none" and resources:
+                metadata.source = "resources"
+            warning = "" if metadata.source == "parameters" else (
+                "This video has no A1111 parameters. Connect metadata directly to a saver to preserve its original tags."
+            )
+            return 200, {"source": metadata.source, "parameters": metadata.parameters,
+                    "rows": display_rows(metadata, "Video size"), "warning": warning}
+        except MissingGenerationMetadata as error:
+            return 200, {"source": "none", "parameters": "", "rows": [], "warning": str(error)}
+        except (ValueError, OSError) as error:
+            return 200, {"source": "none", "parameters": "", "rows": [], "warning": f"Could not read the video: {error}"}
     try:
         metadata = read_image_metadata(path)
     except Exception as e:

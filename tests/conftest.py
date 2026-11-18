@@ -49,6 +49,11 @@ class _StubLoadImage:
         return True
 
 
+class _StubExecutionBlocker:
+    def __init__(self, message):
+        self.message = message
+
+
 def _install_comfyui_stubs() -> None:
     _stub_module("torch", Tensor=object)
     _stub_module("tqdm", tqdm=lambda iterable=None, **kw: iterable if iterable is not None else [])
@@ -59,6 +64,8 @@ def _install_comfyui_stubs() -> None:
         get_full_path=lambda *a, **kw: None,
     )
     _stub_module("nodes", MAX_RESOLUTION=16384, LoadImage=_StubLoadImage)
+    _stub_module("comfy_execution").__path__ = []
+    _stub_module("comfy_execution.graph_utils", ExecutionBlocker=_StubExecutionBlocker)
     comfy = _stub_module("comfy")
     comfy.__path__ = []  # mark as a package so `comfy.sd1_clip` resolves under it
     comfy.samplers = _stub_module("comfy.samplers", KSampler=type("KSampler", (), {

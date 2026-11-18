@@ -71,7 +71,9 @@ function sourceFilename(node, type) {
             seen.add(video.id);
             video = sourceNode(video, video.inputs?.[0]?.name);
         }
-        if ((video?.comfyClass ?? video?.type) === "LoadVideo") return literal(video, "file");
+        const videoType = video?.comfyClass ?? video?.type;
+        if (videoType === "LoadVideo") return literal(video, "file");
+        if (videoType === LOADER) return literal(video, "image");
         throw new PreviewRequiresExecution("Run the workflow to preview metadata from the connected VIDEO input.");
     }
     const filename = literal(node, "file");

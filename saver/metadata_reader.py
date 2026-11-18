@@ -17,6 +17,7 @@ from .video import MAX_METADATA_VALUE_BYTES, extract_json_after
 from .resource_refs import export_resource_references, parse_reference, resource_from_identifier
 
 
+VIDEO_EXTENSIONS = {".mp4", ".webm"}
 GENERATION_TAG_NAMES = {
     name.lower(): name for name in (
         "parameters", "prompt", "workflow", "prompt_original", "workflow_original",

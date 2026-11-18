@@ -1,0 +1,520 @@
+{
+  "id": "709bbf4a-e506-4adf-99e2-49b602311336",
+  "revision": 0,
+  "last_node_id": 7,
+  "last_link_id": 4,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "Load Image with Metadata (Image Saver)",
+      "pos": [
+        35,
+        125
+      ],
+      "size": [
+        415,
+        685
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "image",
+          "name": "image",
+          "type": "COMBO",
+          "widget": {
+            "name": "image"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "upload",
+          "name": "upload",
+          "type": "IMAGEUPLOAD",
+          "widget": {
+            "name": "upload"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "image",
+          "name": "image",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "localized_name": "mask",
+          "name": "mask",
+          "type": "MASK",
+          "links": null
+        },
+        {
+          "localized_name": "metadata",
+          "name": "metadata",
+          "type": "METADATA",
+          "links": [
+            1
+          ]
+        },
+        {
+          "localized_name": "positive",
+          "name": "positive",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "localized_name": "negative",
+          "name": "negative",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "video",
+          "localized_name": "video",
+          "type": "VIDEO",
+          "links": [
+            2
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Load Image with Metadata (Image Saver)"
+      },
+      "widgets_values": [
+        "metadata-review-source.mp4",
+        "image"
+      ],
+      "widgets_values_named": {
+        "image": "metadata-review-source.mp4",
+        "upload": "image"
+      }
+    },
+    {
+      "id": 2,
+      "type": "Edit Metadata (Image Saver)",
+      "pos": [
+        500,
+        125
+      ],
+      "size": [
+        485,
+        840
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "metadata",
+          "name": "metadata",
+          "type": "METADATA",
+          "link": 1
+        },
+        {
+          "localized_name": "width",
+          "name": "width",
+          "shape": 7,
+          "type": "INT",
+          "link": null
+        },
+        {
+          "localized_name": "height",
+          "name": "height",
+          "shape": 7,
+          "type": "INT",
+          "link": null
+        },
+        {
+          "localized_name": "seed",
+          "name": "seed",
+          "shape": 7,
+          "type": "INT",
+          "link": null
+        },
+        {
+          "localized_name": "steps",
+          "name": "steps",
+          "shape": 7,
+          "type": "INT",
+          "link": null
+        },
+        {
+          "localized_name": "cfg",
+          "name": "cfg",
+          "shape": 7,
+          "type": "FLOAT",
+          "link": null
+        },
+        {
+          "localized_name": "sampler_name",
+          "name": "sampler_name",
+          "shape": 7,
+          "type": "COMBO",
+          "link": null
+        },
+        {
+          "localized_name": "scheduler_name",
+          "name": "scheduler_name",
+          "shape": 7,
+          "type": "COMBO",
+          "link": null
+        },
+        {
+          "localized_name": "denoise",
+          "name": "denoise",
+          "shape": 7,
+          "type": "FLOAT",
+          "link": null
+        },
+        {
+          "localized_name": "clip_skip",
+          "name": "clip_skip",
+          "shape": 7,
+          "type": "INT",
+          "link": null
+        },
+        {
+          "localized_name": "modelname",
+          "name": "modelname",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "modelname"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "positive",
+          "name": "positive",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "positive"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "negative",
+          "name": "negative",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "negative"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "additional_hashes",
+          "name": "additional_hashes",
+          "shape": 7,
+          "type": "STRING",
+          "link": 3
+        },
+        {
+          "localized_name": "remove_settings",
+          "name": "remove_settings",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "remove_settings"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "remove_resources",
+          "name": "remove_resources",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "remove_resources"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "metadata",
+          "name": "metadata",
+          "type": "METADATA",
+          "links": [
+            4
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Edit Metadata (Image Saver)"
+      },
+      "widgets_values": [
+        "[original]",
+        "[original], edited in ComfyUI",
+        "[original]",
+        "[\"Version\"]",
+        "[\"civitai:102\"]"
+      ],
+      "widgets_values_named": {
+        "modelname": "[original]",
+        "positive": "[original], edited in ComfyUI",
+        "negative": "[original]",
+        "remove_settings": "[\"Version\"]",
+        "remove_resources": "[\"civitai:102\"]"
+      }
+    },
+    {
+      "id": 3,
+      "type": "Image Saver Save Video",
+      "pos": [
+        1035,
+        125
+      ],
+      "size": [
+        400,
+        460
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "video",
+          "name": "video",
+          "type": "VIDEO",
+          "link": 2
+        },
+        {
+          "localized_name": "metadata",
+          "name": "metadata",
+          "shape": 7,
+          "type": "METADATA",
+          "link": 4
+        },
+        {
+          "localized_name": "filename_prefix",
+          "name": "filename_prefix",
+          "type": "STRING",
+          "widget": {
+            "name": "filename_prefix"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "format",
+          "name": "format",
+          "type": "COMBO",
+          "widget": {
+            "name": "format"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "codec",
+          "name": "codec",
+          "type": "COMBO",
+          "widget": {
+            "name": "codec"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "crf",
+          "name": "crf",
+          "type": "FLOAT",
+          "widget": {
+            "name": "crf"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "embed_workflow",
+          "name": "embed_workflow",
+          "type": "BOOLEAN",
+          "widget": {
+            "name": "embed_workflow"
+          },
+          "link": null
+        },
+        {
+          "localized_name": "time_format",
+          "name": "time_format",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "time_format"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "video",
+          "name": "video",
+          "type": "VIDEO",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Image Saver Save Video"
+      },
+      "widgets_values": [
+        "video-metadata-review/edited-video-%seed",
+        "auto",
+        "auto",
+        23,
+        true,
+        "%Y-%m-%d-%H%M%S"
+      ],
+      "widgets_values_named": {
+        "filename_prefix": "video-metadata-review/edited-video-%seed",
+        "format": "auto",
+        "codec": "auto",
+        "crf": 23,
+        "embed_workflow": true,
+        "time_format": "%Y-%m-%d-%H%M%S"
+      }
+    },
+    {
+      "id": 4,
+      "type": "PrimitiveStringMultiline",
+      "title": "Additional resources",
+      "pos": [
+        35,
+        865
+      ],
+      "size": [
+        415,
+        140
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            3
+          ]
+        }
+      ],
+      "properties": {},
+      "widgets_values": [
+        "urn:air:sdxl:lora:civitai:12@103:0.8"
+      ]
+    },
+    {
+      "id": 5,
+      "type": "MarkdownNote",
+      "title": "Choose the source video",
+      "pos": [
+        35,
+        -105
+      ],
+      "size": [
+        415,
+        155
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "Select an **MP4 or WebM** in **Load Media with Metadata**. Play the clip or copy saved prompts and settings from **Table** or **Text**."
+      ]
+    },
+    {
+      "id": 6,
+      "type": "MarkdownNote",
+      "title": "Edit prompts and resources",
+      "pos": [
+        500,
+        -105
+      ],
+      "size": [
+        485,
+        155
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "Use `[original], more detail` to append to a prompt. Use the checklists to remove items, or connect a STRING to `additional_hashes` to add resources. The sample uses demonstration Civitai IDs."
+      ]
+    },
+    {
+      "id": 7,
+      "type": "MarkdownNote",
+      "title": "Save and check",
+      "pos": [
+        1035,
+        -105
+      ],
+      "size": [
+        400,
+        155
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "Check **Result preview**, then click **Run**. The saver writes a new MP4 with the edited metadata and source audio. Reopen the output in **Load Media with Metadata** to verify it."
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      2,
+      2,
+      0,
+      "METADATA"
+    ],
+    [
+      2,
+      1,
+      5,
+      3,
+      0,
+      "VIDEO"
+    ],
+    [
+      3,
+      4,
+      0,
+      2,
+      13,
+      "STRING"
+    ],
+    [
+      4,
+      2,
+      0,
+      3,
+      1,
+      "METADATA"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.66,
+      "offset": [
+        80,
+        320
+      ]
+    }
+  },
+  "version": 0.4
+}

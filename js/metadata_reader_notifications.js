@@ -1,6 +1,6 @@
 import { app } from "../../scripts/app.js";
 
-const readers = new Set(["Image Saver Read Video Metadata", "Image Saver Read Image Metadata"]);
+const readers = new Set(["Image Saver Read Video Metadata", "Image Saver Read Image Metadata", "Load Image with Metadata (Image Saver)"]);
 
 app.registerExtension({
     name: "ImageSaver.MetadataReaderNotifications",

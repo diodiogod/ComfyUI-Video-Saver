@@ -16,7 +16,7 @@ from typing import Any
 from .nodes import Metadata, parse_checkpoint_name_without_extension
 from .nodes_pipe import EditImageSaverPipe, apply_string_edit
 from .saver.image_metadata import edit_parameters, parse_parameters, read_image_metadata
-from .saver.metadata_reader import MissingGenerationMetadata, read_image_tags, read_resource_records, read_video_tags
+from .saver.metadata_reader import VIDEO_EXTENSIONS, MissingGenerationMetadata, read_image_tags, read_resource_records, read_video_tags
 from .saver.metadata_resources import merge_resources, metadata_choices, remove_references, resource_references, resource_version, selection_values, settings_resources
 from .saver.resource_refs import parse_reference, resource_from_identifier
 from .saver.video import update_edited_generation_tags
@@ -203,7 +203,7 @@ def edit_preview_response(payload):
     except FileNotFoundError:
         return 404, {"error": "file not found"}
     try:
-        is_video = Path(path).suffix.lower() in {".mp4", ".webm"}
+        is_video = Path(path).suffix.lower() in VIDEO_EXTENSIONS
         if is_video or payload.get("reader") == "image":
             from .nodes_metadata_reader import _metadata_from_tags
             read_tags = read_video_tags if is_video else read_image_tags

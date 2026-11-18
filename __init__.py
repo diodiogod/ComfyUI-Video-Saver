@@ -58,6 +58,7 @@ NODE_CLASS_MAPPINGS: dict[str, Any] = {
 WEB_DIRECTORY = "js"
 
 NODE_DISPLAY_NAME_MAPPINGS = {
+    "Load Image with Metadata (Image Saver)": "Load Media with Metadata (Image Saver)",
     "Image Saver Save Video": "Image Saver — Save Native Video (VIDEO + Audio)",
     "Image Saver Video Metadata": "Image Saver — Add Metadata to VHS Video",
     "Image Saver Read Video Metadata": "Image Saver — Read Video Metadata",

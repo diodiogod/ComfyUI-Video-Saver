@@ -9,6 +9,7 @@ from PIL import Image
 from PIL.PngImagePlugin import PngInfo
 
 import folder_paths
+from comfy_execution.graph_utils import ExecutionBlocker
 from image_saver_under_test.nodes_image_loader import LoadImageWithMetadata, metadata_response, split_sampler
 
 PARAMETERS = ("a cat\nNegative prompt: dog\n"
@@ -55,9 +56,10 @@ def test_split_sampler(sampler, scheduler, expected):
 
 def test_node_outputs_image_and_saver_metadata(dirs):
     png(dirs / "gen.png", PARAMETERS)
-    image, mask, metadata, positive, negative = LoadImageWithMetadata().load_image("gen.png")
+    image, mask, metadata, positive, negative, video = LoadImageWithMetadata().load_image("gen.png")
 
     assert (image, mask) == ("IMAGE:gen.png", "MASK:gen.png")
+    assert isinstance(video, ExecutionBlocker)
     assert (positive, negative) == ("a cat", "dog")
     assert metadata.a111_params == PARAMETERS  # re-saved unchanged by Image Saver Simple
     assert (metadata.width, metadata.height, metadata.seed, metadata.steps, metadata.cfg) == (832, 1216, 42, 30, 6.5)
@@ -68,13 +70,18 @@ def test_node_outputs_image_and_saver_metadata(dirs):
 
 def test_node_without_metadata_still_loads_image(dirs):
     png(dirs / "plain.png")
-    image, _, metadata, positive, negative = LoadImageWithMetadata().load_image("plain.png")
+    image, _, metadata, positive, negative, _ = LoadImageWithMetadata().load_image("plain.png")
     assert image == "IMAGE:plain.png"
     assert (metadata, positive, negative) == (None, "", "")
 
 
-def test_node_reuses_load_image_inputs_and_checks():
-    assert LoadImageWithMetadata.INPUT_TYPES()["required"]["image"][1] == {"image_upload": True}
+def test_picker_lists_video_and_retains_image_upload_behavior(dirs):
+    (dirs / "source.MP4").touch()
+    (dirs / "source.webm").touch()
+    (dirs / "ignored.txt").touch()
+    options, widget = LoadImageWithMetadata.INPUT_TYPES()["required"]["image"]
+    assert options == ["source.MP4", "source.webm", "stub.png"]
+    assert widget["image_upload"] is True
     assert LoadImageWithMetadata.IS_CHANGED("x.png") == "changed:x.png"
     assert not hasattr(LoadImageWithMetadata, "ESSENTIALS_CATEGORY")
 

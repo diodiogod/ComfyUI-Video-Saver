@@ -46,11 +46,11 @@ The companion [Civitai Video Metadata Assistant](https://github.com/diodiogod/Ci
 
 Try the [Video Upscaling — Preserve or Edit Metadata example](./example_workflows/video-upscale-preserve-or-edit-metadata.json). This is a metadata wiring example: its 2x resize only enlarges the frames, with no sampler or denoising pass. For diffusion upscaling, replace that section with your own sampling/denoising workflow. It preserves original metadata by default and includes an optional branch for new prompts/settings and carried resource references. See the [example instructions](./example_workflows/README.md) before running it.
 
-Use **Image Saver — Read Video Metadata** to recover the source video's metadata. Upload/select an MP4 or WebM, or connect the original native `Load Video` output to its optional `video` input. Connect the reader's `metadata` output directly to `metadata` on **Save Native Video** or **Add Metadata to VHS Video**; process the frames/audio with your usual nodes. For VHS, select the same source file in the reader and your VHS loader.
+Use **Load Media with Metadata** to open an image or an MP4/WebM. It displays the image or a playable video with copyable Table and Text views before you run the workflow. Images provide `image` and `mask`. Videos provide native `video` with audio. Both provide saved `metadata` and recovered prompts. The old **Load Image with Metadata** node ID remains valid for saved workflows.
 
-For images, use **Load Image with Metadata** with a PNG, JPEG, WebP, or AVIF file. It provides the usual ComfyUI image and mask outputs alongside `metadata` and the recovered prompts. It also shows copyable Table and Text views without running the graph. A mask editor copy may no longer contain the original metadata. Existing **Image Saver — Read Image Metadata** workflows continue to work.
+Connect `metadata` to **Image Saver Simple**, **Save Native Video**, or **Add Metadata to VHS Video** to carry saved generation information through processing. **Image Saver — Read Video Metadata** is also available when another node already supplies the original native `VIDEO`. For VHS, select the same source in the metadata loader and your VHS loader.
 
-The reader does not decode frames, hash model files, or contact Civitai. It preserves the source generation tags, including prompts, settings, hashes, resource versions, and weights. You do not need the original models installed. The output video's resolution can change while its metadata continues to describe the original generation.
+Video metadata comes directly from the container, without decoding the frames, hashing model files, or contacting Civitai. The output video's resolution can change while its metadata continues to describe the original generation.
 
 To inspect or wire individual values, connect `METADATA` to **Expand Image Saver Metadata** (previously displayed as **Read Image Saver Metadata**). It exposes prompts, model name, dimensions, seed, steps, CFG, sampler, scheduler, denoise, clip skip, resource references, and the A1111 parameter text. Sampler and scheduler connect directly to compatible sampler inputs.
 
@@ -60,7 +60,7 @@ Insert **Edit Metadata** between a loader or reader and the saver. The editor re
 
 The editor previews file-backed image and video sources and chains of editors before execution. Computed inputs require a run. Disconnecting the metadata path clears the preview. For videos, the saver writes the edited settings and resource list into both the parameters and the graph Civitai reads. To preserve a video that carries only a ComfyUI graph, connect the reader directly to the saver. For workflow-only images, the loader displays any recovered settings and leaves the A1111 parameter text empty.
 
-Try the [image metadata editor example](./examples/README.md#image-metadata-editor).
+Try the [image metadata editor example](./examples/README.md#image-metadata-editor) or the [video metadata editor example](./example_workflows/README.md#edit-video-metadata).
 
 The **`hashes`** output carries **all available resource references and weights** in one comma-separated string: literal hashes, Civitai model-version IDs, and AIRs. The metadata creator and savers use the same format. The historical socket name is retained, but a resource stored as an ID/AIR does not need to be converted to a hash. Only information embedded in the source file can be recovered; reading metadata makes no Civitai requests.
 
