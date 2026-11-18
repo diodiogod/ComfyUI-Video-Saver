@@ -1,7 +1,7 @@
 {
   "id": "c05e516a-8a66-4448-b85e-ca02d03eb916",
   "revision": 0,
-  "last_node_id": 52,
+  "last_node_id": 53,
   "last_link_id": 80,
   "nodes": [
     {
@@ -1159,6 +1159,30 @@
       "properties": {},
       "widgets_values": [
         "Default: the saver receives the original METADATA directly, preserving the source generation prompt, settings and resource information. The video saves at its actual processed resolution; the metadata retains the original generation size."
+      ],
+      "color": "#432",
+      "bgcolor": "#653"
+    },
+    {
+      "id": 53,
+      "type": "MarkdownNote",
+      "pos": [
+        -1160,
+        2730
+      ],
+      "size": [
+        455,
+        190
+      ],
+      "flags": {},
+      "order": 28,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "Edit a few saved fields",
+      "properties": {},
+      "widgets_values": [
+        "Insert **Edit Metadata (Image Saver)** on the wire from **Original metadata (default)** to the saver's `metadata` input. Edit a prompt or use the checklists to remove resources and settings.\n\nSee **Edit Video Metadata** (`edit-video-metadata.json`) for a complete example."
       ],
       "color": "#432",
       "bgcolor": "#653"
