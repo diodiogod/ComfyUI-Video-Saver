@@ -13,6 +13,8 @@ Drag the JSON onto the ComfyUI canvas, then adapt the generation nodes, models, 
 
 Copy [`metadata-review-source.mp4`](./metadata-review-source.mp4) to ComfyUI's input directory and open [`edit-video-metadata.json`](./edit-video-metadata.json). **Load Media with Metadata** plays the clip and shows copyable generation data. **Edit Metadata** appends to the prompt, removes a demo LoRA, and adds a weighted AIR. Run to save a separate MP4 with the original audio. The clip and resource IDs are demonstration data.
 
+[`video-metadata-editor-review.json`](./video-metadata-editor-review.json) shows the same editing pattern with ComfyUI's **Load Video** and a separate **Read Video Metadata** node.
+
 ## Video Upscaling — Preserve or Edit Metadata
 
 [`video-upscale-preserve-or-edit-metadata.json`](./video-upscale-preserve-or-edit-metadata.json) loads a native video, reads its generation metadata, resizes the frames by 2x, and saves the video with its original audio and frame rate. Select your own source video in Load Video. The workflow uses this pack and ComfyUI's built-in nodes.
