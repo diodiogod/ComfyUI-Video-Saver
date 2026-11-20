@@ -1,8 +1,11 @@
-# Unreleased
+# v1.29.0
 
-- Merge upstream Image Saver v1.28.0, including Edit Metadata. Extend the upstream loader to open images and MP4/WebM with the same copyable Table and Text views.
-- Preview edits live on file sources, select resources and settings by name, and add weighted resource references. Edited videos write updated parameters and Civitai-compatible prompts and resource tags.
-- Display the existing Read Image Saver Metadata node as Expand Image Saver Metadata and keep its saved workflow identifier.
+- Add **Load Media with Metadata** for images, MP4, and WebM. Preview the media and copy prompts or individual settings from the Table and Text views before running. The loader keeps existing image workflow connections and adds a native VIDEO output with audio.
+- Add **Edit Metadata (Image Saver)** to change prompts and settings, remove selected resources, and add hashes, Civitai version IDs, or weighted AIRs. Preview supported file inputs and editor chains live. Native VIDEO and VHS saves carry the edits in the metadata Civitai reads.
+- Show the existing metadata reader as **Expand Image Saver Metadata** while keeping its workflow ID.
+- Add annotated video metadata editing examples and show where to insert the editor in the video upscaling example.
+
+Includes the loader and editor foundation from upstream ComfyUI-Image-Saver v1.28.0.
 
 # v1.28.2
 
