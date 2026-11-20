@@ -1,6 +1,6 @@
 # v1.28.2
 
-- Keep the local checkpoint filename in native VIDEO and VHS metadata so Civitai can recognize external uploads. Preserve linked resource versions and LoRA weights.
+- Prevent Civitai from showing the **Made on-site** badge on locally generated videos when a local checkpoint filename is available. Native VIDEO and VHS metadata still preserve checkpoint and LoRA links and weights.
 
 # v1.28.1
 
