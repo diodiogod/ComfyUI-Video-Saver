@@ -1,3 +1,7 @@
+# v1.28.2
+
+- Keep the local checkpoint filename in native VIDEO and VHS metadata so Civitai can recognize external uploads. Preserve linked resource versions and LoRA weights.
+
 # v1.28.1
 
 - Use ComfyUI's existing PyAV installation to write native VIDEO and VHS metadata without a separate FFmpeg executable or `imageio-ffmpeg`. Video and audio are copied without re-encoding, with Civitai-compatible metadata preserved (#3).

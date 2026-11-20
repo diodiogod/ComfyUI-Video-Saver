@@ -218,6 +218,11 @@ def resources_to_prompt_json(
         graph[node_id] = {"class_type": class_type, "inputs": inputs}
         return [node_id, 0]
 
+    modelname = getattr(metadata, "modelname", "")
+    local_model = modelname.strip() if isinstance(modelname, str) else ""
+    if local_model.lower().startswith(("urn:air:", "civitai:")):
+        local_model = ""
+    local_model = Path(local_model.replace("\\", "/")).name
     model_ref = None
     resolved_kinds = set()
     seen = set()
@@ -230,8 +235,11 @@ def resources_to_prompt_json(
         air, kind = identity
         seen.add(air)
         is_model = kind in {"checkpoint", "unet", "diffusionmodel", "model"}
-        resolved_kinds.add("model" if is_model else "lora" if kind in {"lora", "lycoris", "locon"} else kind)
         if is_model:
+            if "model" not in resolved_kinds and local_model.lower() not in {"", "..", "unknown", "none"}:
+                # Civitai displays the first model and uses its local name to recognize an external upload.
+                # Keep the separate AIR below so the same checkpoint version is still linked.
+                add_node("UNETLoader", {"unet_name": local_model})
             model_ref = add_node("UNETLoader", {"unet_name": air})
         else:
             weight = resource.get("weight", 1.0)
@@ -245,6 +253,7 @@ def resources_to_prompt_json(
             reference = add_node("LoraLoaderModelOnly", inputs)
             if kind in {"lora", "lycoris", "locon"}:
                 model_ref = reference
+        resolved_kinds.add("model" if is_model else "lora" if kind in {"lora", "lycoris", "locon"} else kind)
 
     for node in _source_resource_nodes(prompt):
         inputs = node["inputs"]
@@ -257,7 +266,6 @@ def resources_to_prompt_json(
 
     # A saver can have metadata without an embedded workflow. Retain its model
     # filename even when Civitai downloads were disabled or the lookup failed.
-    modelname = getattr(metadata, "modelname", "")
     has_model = any("unet_name" in node["inputs"] or "ckpt_name" in node["inputs"] for node in graph.values())
     if not has_model and isinstance(modelname, str) and modelname and modelname.lower() not in {"unknown", "none"}:
         model_ref = add_node("UNETLoader", {"unet_name": modelname})
