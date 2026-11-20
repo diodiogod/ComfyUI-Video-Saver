@@ -11,7 +11,7 @@ Drag the JSON onto the ComfyUI canvas, then adapt the generation nodes, models, 
 
 ## Edit Video Metadata
 
-Copy [`metadata-review-source.mp4`](./metadata-review-source.mp4) to ComfyUI's input directory and open [`edit-video-metadata.json`](./edit-video-metadata.json). **Load Media with Metadata** plays the clip and shows copyable generation data. **Edit Metadata** appends to the prompt, removes a demo LoRA, and adds a weighted AIR. Run to save a separate MP4 with the original audio. The clip and resource IDs are demonstration data.
+Open [`edit-video-metadata.json`](./edit-video-metadata.json) and select your own MP4 or WebM with saved generation parameters in **Load Media with Metadata**. Use **Edit Metadata** to change prompts, settings, or resource references. Run to save a separate MP4 with the original audio.
 
 [`video-metadata-editor-review.json`](./video-metadata-editor-review.json) shows the same editing pattern with ComfyUI's **Load Video** and a separate **Read Video Metadata** node.
 

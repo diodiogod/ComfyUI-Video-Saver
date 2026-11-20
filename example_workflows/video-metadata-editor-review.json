@@ -33,11 +33,11 @@
         "Node name for S&R": "LoadVideo"
       },
       "widgets_values": [
-        "metadata-review-source.mp4",
+        "",
         "image"
       ],
       "widgets_values_named": {
-        "file": "metadata-review-source.mp4",
+        "file": "",
         "upload": "image"
       }
     },
@@ -275,10 +275,10 @@
         "Node name for S&R": "PrimitiveStringMultiline"
       },
       "widgets_values": [
-        "urn:air:sdxl:lora:civitai:12@103:0.8"
+        ""
       ],
       "widgets_values_named": {
-        "value": "urn:air:sdxl:lora:civitai:12@103:0.8"
+        "value": ""
       }
     },
     {
@@ -354,10 +354,10 @@
       "title": "Save and check the result",
       "properties": {},
       "widgets_values": [
-        "Check **Result preview**, then click **Run** to save a new MP4 with the edited metadata. Reopen it in **Read Video Metadata** to verify what was saved.\n\nThe sample uses demonstration Civitai IDs."
+        "Check **Result preview**, then click **Run** to save a new MP4 with the edited metadata. Reopen it in **Read Video Metadata** to verify what was saved."
       ],
       "widgets_values_named": {
-        "text": "Check **Result preview**, then click **Run** to save a new MP4 with the edited metadata. Reopen it in **Read Video Metadata** to verify what was saved.\n\nThe sample uses demonstration Civitai IDs."
+        "text": "Check **Result preview**, then click **Run** to save a new MP4 with the edited metadata. Reopen it in **Read Video Metadata** to verify what was saved."
       },
       "color": "#432",
       "bgcolor": "#653"

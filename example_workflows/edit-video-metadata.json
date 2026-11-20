@@ -84,11 +84,11 @@
         "Node name for S&R": "Load Image with Metadata (Image Saver)"
       },
       "widgets_values": [
-        "metadata-review-source.mp4",
+        "",
         "image"
       ],
       "widgets_values_named": {
-        "image": "metadata-review-source.mp4",
+        "image": "",
         "upload": "image"
       }
     },
@@ -251,15 +251,15 @@
         "[original]",
         "[original], edited in ComfyUI",
         "[original]",
-        "[\"Version\"]",
-        "[\"civitai:102\"]"
+        "[]",
+        "[]"
       ],
       "widgets_values_named": {
         "modelname": "[original]",
         "positive": "[original], edited in ComfyUI",
         "negative": "[original]",
-        "remove_settings": "[\"Version\"]",
-        "remove_resources": "[\"civitai:102\"]"
+        "remove_settings": "[]",
+        "remove_resources": "[]"
       }
     },
     {
@@ -401,7 +401,7 @@
       ],
       "properties": {},
       "widgets_values": [
-        "urn:air:sdxl:lora:civitai:12@103:0.8"
+        ""
       ]
     },
     {
@@ -445,7 +445,7 @@
       "outputs": [],
       "properties": {},
       "widgets_values": [
-        "Use `[original], more detail` to append to a prompt. Use the checklists to remove items, or connect a STRING to `additional_hashes` to add resources. The sample uses demonstration Civitai IDs."
+        "Use `[original], more detail` to append to a prompt. Use the checklists to remove items, or enter resource references in the connected STRING node to add them."
       ]
     },
     {
