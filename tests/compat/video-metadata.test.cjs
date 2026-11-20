@@ -45,6 +45,11 @@ for (const fixture of fixtures) {
     const ids = versions.map((resource) => resource.modelVersionId).sort((a, b) => a - b);
     const expected = { air: [101, 102], id_only: [101, 102], missing_type: [103], embedding: [104], auxiliary: [105], invalid_air: [106], offline: [], unresolved_weighted: [], no_workflow: [101] };
     assert.deepEqual(ids, upscale ? [101, 102, 107] : edited ? [101, 107] : expected[fixture.case]);
+    // Civitai uses the parsed Model to distinguish external generations even when resources are linked.
+    if (['air', 'id_only', 'invalid_air', 'no_workflow'].includes(fixture.case)) {
+      assert.equal(metadata.Model, 'fallback');
+      assert.equal(metadata.engine, 'ComfyUI');
+    }
     if (upscale || edited) assert.equal(versions.find((resource) => resource.modelVersionId === 107).weight, 0.6);
     if (!edited && ['air', 'id_only'].includes(fixture.case)) {
       assert.equal(versions.find((resource) => resource.modelVersionId === 102).weight, 0.8);

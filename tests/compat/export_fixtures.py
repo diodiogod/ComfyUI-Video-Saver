@@ -16,7 +16,7 @@ from saver.resource_refs import export_resource_references, parse_reference, res
 
 
 BASE = dict(
-    modelname="fallback.safetensors", positive="ABCD positive", negative="negative",
+    modelname=r"checkpoints\fallback.safetensors", positive="ABCD positive", negative="negative",
     width=832, height=480, seed=42, steps=20, cfg=5.5,
     sampler_name="dpmpp_2m", scheduler_name="karras", denoise=0.75,
 )

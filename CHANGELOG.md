@@ -4,6 +4,10 @@
 - Preview edits live on file sources, select resources and settings by name, and add weighted resource references. Edited videos write updated parameters and Civitai-compatible prompts and resource tags.
 - Display the existing Read Image Saver Metadata node as Expand Image Saver Metadata and keep its saved workflow identifier.
 
+# v1.28.2
+
+- Prevent Civitai from showing the **Made on-site** badge on locally generated videos when a local checkpoint filename is available. Native VIDEO and VHS metadata still preserve checkpoint and LoRA links and weights.
+
 # v1.28.1
 
 - Use ComfyUI's existing PyAV installation to write native VIDEO and VHS metadata without a separate FFmpeg executable or `imageio-ffmpeg`. Video and audio are copied without re-encoding, with Civitai-compatible metadata preserved (#3).
